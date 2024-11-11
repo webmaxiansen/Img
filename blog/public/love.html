@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>爱心</title>
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      background: linear-gradient(to bottom, #FFB6C1, #FF69B4, #FF1493);
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="heartCanvas"></canvas> 
+  <script>
+    const canvas = document.getElementById("heartCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // 设置画布为全屏
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 中心点
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    // 根据窗口宽度调整爱心比例
+    const scale = canvas.width / 75;
+
+    // 爱心路径
+    function drawHeartPath(t) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(
+        13 * Math.cos(t) -
+        5 * Math.cos(2 * t) -
+        2 * Math.cos(3 * t) -
+        Math.cos(4 * t)
+      );
+      return [centerX + x * scale, centerY + y * scale];
+    }
+
+    // 绘制箭头
+    function drawArrow(x, y, angle) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      // 绘制三角形箭头
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-10, -5);
+      ctx.lineTo(-10, 5);
+      ctx.closePath();
+
+      ctx.fillStyle = "#FF0000";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 绘制爱心的过程
+    let pathPoints = [];
+    let step = 0;
+    let isHeartComplete = false;
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 设置线条样式
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#FF0000";
+
+      // 绘制路径点
+      pathPoints.forEach(([x, y], index) => {
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+
+      ctx.stroke();
+
+      // 绘制箭头在路径的末端
+      if (pathPoints.length > 1) {
+        const [x1, y1] = pathPoints[pathPoints.length - 2];
+        const [x2, y2] = pathPoints[pathPoints.length - 1];
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        drawArrow(x2, y2, angle);
+      }
+
+      // 增加路径点直到完成
+      if (step <= Math.PI * 2) {
+        pathPoints.push(drawHeartPath(step));
+        step += 0.02; // 控制绘制速度
+        requestAnimationFrame(draw);
+      } else if (!isHeartComplete) {
+        // 当爱心绘制完成时，绘制名字
+        isHeartComplete = true;
+        drawTextOneByOne();
+      }
+    }
+
+    // 绘制文字的过程
+    const text = "瑜欣顾";
+    const fontSize = 36;
+    let textIndex = 0;
+
+    function drawTextOneByOne() {
+      if (textIndex < text.length) {
+        // 设置文字样式和阴影来增加立体感
+        ctx.font = `${fontSize}px Arial`;
+        ctx.fillStyle = "#FF0000";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+        ctx.shadowBlur = 4;
+
+        // 计算字符位置
+        const x = canvas.width - ctx.measureText(text.substring(0, textIndex + 1)).width - 20;
+        const y = canvas.height - 40;
+
+        // 绘制当前字符
+        ctx.fillText(text[textIndex], x, y);
+        textIndex++;
+
+        // 递归调用，依次绘制下一个字符
+        setTimeout(drawTextOneByOne, 200); // 延时200ms，控制字符绘制速度
+      }
+    }
+
+    // 开始绘制爱心
+    draw();
+
+  </script>
+
+</body>
+
+</html>
