@@ -44,7 +44,7 @@ def send_email(subject, content, sender_email, sender_password, receiver_email):
 # 示例调用
 if __name__ == "__main__":
     sender_email = "2398680927@qq.com"  # 替换为你的QQ邮箱
-    sender_password = "aqudpcegsonvecbj"  # 替换为你的应用专用密码
+    sender_password = ""  # 替换为你的应用专用密码 已保存至微信收藏
     # receiver_email = "maxiansen2007@gmail.com"  # 替换为接收者邮箱 
     # receiver_email = "zxy_20001215@qq.com" 
     receiver_email = "2398680927@qq.com" 
