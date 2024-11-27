@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starry Night with Fireworks</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="starryNight"></canvas>
+    <script>
+        const canvas = document.getElementById("starryNight");
+        const ctx = canvas.getContext("2d");
+
+        // 设置画布尺寸
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 设置背景色为黑色
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 星星类
+        class Star {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                // 让星星只出现在屏幕的上半部分
+                this.y = Math.random() * (canvas.height / 2);  // 只在上半部分
+                this.size = Math.random() * 2 + 0.5;
+                this.alpha = Math.random() * 0.7 + 0.3;
+                this.alphaSpeed = Math.random() * 0.02 + 0.005;  // 透明度变化的速度
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.fill();
+            }
+
+            update() {
+                this.alpha += this.alphaSpeed;
+                if (this.alpha > 1 || this.alpha < 0.3) {
+                    this.alphaSpeed = -this.alphaSpeed;
+                }
+                this.draw();
+            }
+        }
+
+        // 烟花类
+        class Firework {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.particles = [];
+                this.height = 0;
+                this.exploded = false;
+                this.explodeHeight = Math.random() * 200 + 300;
+                this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                this.tailParticles = [];  // 烟花尾迹粒子
+                this.sound = new Audio('https://bpic.588ku.com/music/yinxiao/yinxiaomp3/bd79717a-8f87-41de-92e7-08fd50edd1f9.mp3'); // 设置声音链接
+                this.sound.onload = () => {
+                    console.log("音频加载完成，可以播放了");
+                    this.sound.play();
+                };
+                this.playSound = false;  // 控制音频是否已经播放
+            }
+
+            update() {
+                if (!this.exploded) {
+                    // 烟花升空
+                    this.y -= 2;
+                    this.height += 2;
+
+                    // 烟花升空时留下尾迹
+                    this.tailParticles.push(new FireworkTail(this.x, this.y, this.color));
+
+                    // 如果达到爆炸高度
+                    if (this.height >= this.explodeHeight) {
+                        this.explode();
+                    }
+                } else {
+                    // 绽放效果
+                    for (let particle of this.particles) {
+                        particle.update();
+                    }
+                    this.particles = this.particles.filter(p => p.alpha > 0);
+                }
+
+                // 绘制尾迹粒子
+                for (let tail of this.tailParticles) {
+                    tail.update();
+                }
+                this.tailParticles = this.tailParticles.filter(tail => tail.alpha > 0);
+            }
+
+            explode() {
+                this.exploded = true;
+
+                // 播放烟花绽放的声音，只播放一次
+                if (!this.playSound) {
+                    this.sound.play();
+                    this.playSound = true;
+                }
+
+                // 绽放烟花粒子
+                for (let i = 0; i < 100; i++) {
+                    this.particles.push(new FireworkParticle(this.x, this.y, this.color));
+                }
+            }
+        }
+
+        // 烟花尾迹粒子类
+        class FireworkTail {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 2 + 1;
+                this.speedX = Math.random() * 2 - 1;
+                this.speedY = Math.random() * 2 - 1;
+                this.alpha = 1;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.alpha -= 0.02;
+                this.size *= 0.98;
+                this.draw();
+            }
+        }
+
+        // 烟花粒子类
+        class FireworkParticle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 3 + 1;
+                this.speedX = Math.random() * 6 - 3;
+                this.speedY = Math.random() * 6 - 3;
+                this.alpha = 1;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.alpha -= 0.02;
+                this.size *= 0.98;
+                this.draw();
+            }
+        }
+
+        // 创建星星
+        let stars = [];
+        for (let i = 0; i < 250; i++) {  // 适当减少星星数量
+            stars.push(new Star());
+        }
+
+        // 创建烟花
+        let fireworks = [];
+        function createFirework() {
+            if (Math.random() < 0.01) {
+                let x = Math.random() * canvas.width;
+                let y = canvas.height - 10;
+                fireworks.push(new Firework(x, y));
+            }
+        }
+
+        // 绘制月亮，确保每一帧都绘制
+        function drawMoon() {
+            const x = canvas.width - 100;
+            const y = 100;
+            const radius = 50;
+
+            // 创建渐变背景，模拟月亮的阴影效果
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, "rgba(255, 255, 255, 1)");  // 月亮亮的部分
+            gradient.addColorStop(0.8, "rgba(180, 180, 180, 1)"); // 中间的过渡部分
+            gradient.addColorStop(1, "rgba(80, 80, 80, 1)");     // 边缘的暗部
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // 在月亮上添加坑坑洼洼效果
+            // addCraters(x, y, radius);
+        }
+
+        // 绘制月球上的坑洞
+        function addCraters(x, y, radius) {
+            const numCraters = Math.floor(Math.random() * 5) + 5; // 随机决定坑洞数量
+
+            for (let i = 0; i < numCraters; i++) {
+                const craterRadius = Math.random() * 5 + 2; // 随机生成坑洞半径
+                const craterX = x + Math.random() * radius - radius / 2; // 随机生成坑洞的x坐标
+                const craterY = y + Math.random() * radius - radius / 2; // 随机生成坑洞的y坐标
+
+                // 绘制坑洞
+                ctx.beginPath();
+                ctx.arc(craterX, craterY, craterRadius, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(60, 60, 60, 0.8)";  // 坑洞的颜色，深灰色
+                ctx.fill();
+            }
+        }
+
+        // 动画循环
+        function animate() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);  // 清空画布，重新绘制背景
+
+            // 绘制星星并使它们闪烁
+            for (let star of stars) {
+                star.update();
+            }
+
+            // 绘制月亮
+            drawMoon();
+
+            // 生成烟花
+            createFirework();
+
+            // 更新烟花
+            for (let firework of fireworks) {
+                firework.update();
+            }
+
+            // 请求下一帧
+            requestAnimationFrame(animate);
+        }
+
+        // 启动动画
+        animate();
+    </script>
+</body>
+
+</html>
