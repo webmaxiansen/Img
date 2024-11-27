@@ -72,7 +72,7 @@
                 this.explodeHeight = Math.random() * 200 + 300;
                 this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
                 this.tailParticles = [];  // 烟花尾迹粒子
-                this.sound = new Audio('https://bpic.588ku.com/music/yinxiao/yinxiaomp3/bd79717a-8f87-41de-92e7-08fd50edd1f9.mp3'); // 设置声音链接
+                this.sound = new Audio('/Img/blog/music/sound.mp3'); // 设置声音链接
                 this.sound.onload = () => {
                     console.log("音频加载完成，可以播放了");
                     this.sound.play();
