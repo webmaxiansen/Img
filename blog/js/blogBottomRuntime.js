@@ -17,7 +17,7 @@ setInterval(() => {
   
     // 生成时间字符串加跳动的 SVG 爱心
     let currentTimeHtml = `本站运行了 ${days} 天 ${hours} 小时 ${minutes} 分 ${seconds} 秒 
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="red" viewBox="0 0 16 16" class="heartbeat">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="red" viewBox="0 0 14 14" class="heartbeat">
         <path d="M8 15s-3.315-2.253-5.373-4.303C.67 8.393 0 6.627 0 5a4 4 0 0 1 8-1.268A4 4 0 0 1 16 5c0 1.627-.67 3.393-2.627 5.697C11.315 12.747 8 15 8 15z"/>
       </svg>`;
   
