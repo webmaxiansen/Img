@@ -1,10 +1,10 @@
-  
-@import url('./categorybar.css');
-/* 黑夜霓虹灯效果 */
-@import url('./neon_light.css');
-/* 星空背景和流星特效 */
-@import url('./universe.css');
-:root {
+  @import url('./categorybar.css');
+  /* 黑夜霓虹灯效果 */
+  @import url('./neon_light.css');
+  /* 星空背景和流星特效 */
+  @import url('./universe.css');
+
+  :root {
     --trans-light: rgba(255, 255, 255, 0.88);
     --trans-dark: rgba(25, 25, 25, 0.88);
     --border-style: 1px solid rgb(169, 169, 169);
@@ -12,13 +12,13 @@
   }
 
   /* 首页文章卡片 */
-  #recent-posts > .recent-post-item {
+  #recent-posts>.recent-post-item {
     background: var(--trans-light);
     backdrop-filter: var(--backdrop-filter);
     border-radius: 25px;
     border: var(--border-style);
   }
-  
+
   /* 首页侧栏卡片 */
   #aside-content .card-widget {
     background: var(--trans-light);
@@ -26,7 +26,7 @@
     border-radius: 18px;
     border: var(--border-style);
   }
-  
+
   /* 文章页、归档页、普通页面 */
   div#post,
   div#page,
@@ -36,76 +36,116 @@
     border: var(--border-style);
     border-radius: 20px;
   }
-  
+
   /* 导航栏 */
   #page-header.nav-fixed #nav {
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: var(--backdrop-filter);
   }
-  
+
   [data-theme="dark"] #page-header.nav-fixed #nav {
     background: rgba(0, 0, 0, 0.7) !important;
   }
-  
+
   /* 夜间模式遮罩 */
-  [data-theme="dark"] #recent-posts > .recent-post-item,
+  [data-theme="dark"] #recent-posts>.recent-post-item,
   [data-theme="dark"] #aside-content .card-widget,
   [data-theme="dark"] div#post,
   [data-theme="dark"] div#archive,
   [data-theme="dark"] div#page {
     background: var(--trans-dark);
   }
-  
-  
+
+
   /* 夜间模式页脚页头遮罩透明 */
   [data-theme="dark"] #footer::before {
     background: transparent !important;
   }
+
   [data-theme="dark"] #page-header::before {
     background: transparent !important;
   }
-  
+
   /* 阅读模式 */
   .read-mode #aside-content .card-widget {
     background: rgba(158, 204, 171, 0.5) !important;
   }
+
   .read-mode div#post {
     background: rgba(158, 204, 171, 0.5) !important;
   }
-  
+
   /* 夜间模式下的阅读模式 */
   [data-theme="dark"] .read-mode #aside-content .card-widget {
     background: rgba(25, 25, 25, 0.9) !important;
     color: #ffffff;
   }
+
   [data-theme="dark"] .read-mode div#post {
     background: rgba(25, 25, 25, 0.9) !important;
     color: #ffffff;
   }
 
-/* ---------- start 一图流 ---------- */
+  /* ---------- start 一图流 ---------- */
 
- #footer {
+  #footer {
     background: transparent !important;
   }
+
   #page-header {
     background: transparent !important;
   }
-  
+
   /* 白天模式遮罩透明 */
   #footer::before {
     background: transparent !important;
   }
+
   #page-header::before {
     background: transparent !important;
   }
-  
+
   /* 夜间模式遮罩透明 */
   [data-theme="dark"] #footer::before {
     background: transparent !important;
   }
+
   [data-theme="dark"] #page-header::before {
     background: transparent !important;
   }
 
-/* ---------- end 一图流 ---------- */
+  /* ---------- end 一图流 ---------- */
+
+  /* ---------- start 友联样式设置 ---------- */
+
+  /* 友链一行显示更多 */
+  .site-card {
+    width: calc(100% / 5 - 16px) !important;
+    border-radius: 18px !important;
+  }
+
+  .site-card .img {
+    height: 165px !important;
+    border-radius: 18px !important;
+  }
+
+  /* 适应宽度不同的设备 */
+  @media screen and (max-width: 1200px) {
+    .site-card {
+      width: calc(100% / 4 - 16px) !important;
+    }
+  }
+
+  @media screen and (max-width: 900px) {
+    .site-card {
+      width: calc(100% / 3 - 16px) !important;
+    }
+  }
+
+  @media screen and (max-width: 600px) {
+    .site-card {
+      width: calc(100% / 2 - 16px) !important;
+    }
+  }
+
+  /* ---------- end 友联样式设置 ---------- */
