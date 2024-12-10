@@ -58,34 +58,92 @@
         };
       },
       methods: {
+        setItemWithExpiry(key, value, ttl) {
+          return new Promise((resolve, reject) => {
+            try {
+              const now = new Date();
+
+              // 存储数据和过期时间
+              const item = {
+                value: value,
+                expiry: now.getTime() + ttl, // 过期时间戳
+              };
+
+              localStorage.setItem(key, JSON.stringify(item)); // 将数据存入本地存储
+              resolve('Data successfully stored'); // 存储成功
+            } catch (error) {
+              reject('Error storing data'); // 存储失败
+            }
+          });
+        },
+        getItemWithExpiry(key) {
+          return new Promise((resolve, reject) => {
+            try {
+              const itemStr = localStorage.getItem(key);
+
+              // 如果没有找到数据，则返回 null
+              if (!itemStr) {
+                resolve(null);
+                return;
+              }
+
+              const item = JSON.parse(itemStr);
+              const now = new Date();
+
+              // 如果数据过期了，清除并返回 null
+              if (now.getTime() > item.expiry) {
+                localStorage.removeItem(key);
+                resolve(null);
+                return;
+              }
+
+              // 返回存储的数据
+              resolve(item.value);
+            } catch (error) {
+              reject('Error reading data'); // 读取失败
+            }
+          });
+        },
         // 切换背景图片
         setBackground(image, event) {
           // 使用 axios 发送 POST 请求
-          fetch(' http://101.200.151.47:8848/api/save_image_path', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              image_path: image,
-            }),
-          }).then(response => {
-            console.log("response", response);
+          // fetch(' http://101.200.151.47:8848/api/save_image_path', {
+          //   method: 'POST',
+          //   headers: {
+          //     'Content-Type': 'application/json',
+          //   },
+          //   body: JSON.stringify({
+          //     image_path: image,
+          //   }),
+          // }).then(response => {
+          //   console.log("response", response);
+          //   this.currentBackground = image;
+          // })
+          // 1000 * 60 * 60 * 24 * 30
+          this.setItemWithExpiry("image_path", image, 1000 * 60 * 60 * 24 * 30).then(res => {
             this.currentBackground = image;
-          })
+          });
+
         },
       },
       mounted() {
-        fetch('http://101.200.151.47:8848/api/get_image_path', {
-          method: 'Get',
-        }).then(response => {
-          return response.json();
-          // this.currentBackground = response.data.image_path;
-        }).then(data => {
-          console.log("data", data.data.image_path);
+        // fetch('http://101.200.151.47:8848/api/get_image_path', {
+        //   method: 'Get',
+        // }).then(response => {
+        //   return response.json();
+        //   // this.currentBackground = response.data.image_path;
+        // }).then(data => {
+        //   console.log("data", data.data.image_path);
 
-          this.currentBackground = data.data.image_path;
-        })
+        //   this.currentBackground = data.data.image_path;
+        // })
+        this.getItemWithExpiry("image_path").then(res => {
+          if (res == null) {
+            this.currentBackground = this.backgrounds[Math.floor(Math.random() * this.backgrounds.length)];
+            return;
+          }
+          this.currentBackground = res;
+        });
       },
     }).mount('#app');
   </script>
