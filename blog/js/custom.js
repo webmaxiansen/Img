@@ -32,5 +32,7 @@ import "./universe.js";
   }
 
   document.getElementById("web_bg").style.background = `url(${item.value})`;
+  document.getElementById("web_bg").style.backgroundSize = 'cover';
+  document.getElementById("web_bg").style.backgroundPosition = 'center';
 })();
 // ****************** 背景更新 ******************
