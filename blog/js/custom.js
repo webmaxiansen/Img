@@ -31,6 +31,6 @@ import "./universe.js";
     return;
   }
 
-  document.getElementById("#web_bg").style.background = item.value;
+  document.getElementById("web_bg").style.background = item.value;
 })();
 // ****************** 背景更新 ******************
