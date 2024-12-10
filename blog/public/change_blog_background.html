@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
   <script src="https://unpkg.com/vue@3"></script>
   <script src="https://unpkg.com/element-plus"></script>
+
 </head>
 
 <body>
@@ -19,7 +20,7 @@
         <h2>选择背景</h2>
         <div class="scrollable-gallery">
           <div v-for="(bg, index) in backgrounds" :key="index" class="image-item"
-            :class="{ active: bg === currentBackground }" @click="setBackground(bg)">
+            :class="{ active: bg === currentBackground }" @click="setBackground(bg,$event)">
             <img :src="bg" alt="背景图片" />
           </div>
         </div>
@@ -44,6 +45,13 @@
             'https://maxiansen.top/Img/blog/public/img/dm5.webp',
             'https://maxiansen.top/Img/blog/public/img/dm6.webp',
             'https://maxiansen.top/Img/blog/public/img/dm7.webp',
+            "https://maxiansen.top/Img/blog/public/img/fj1.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj2.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj3.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj4.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj5.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj6.webp",
+            "https://maxiansen.top/Img/blog/public/img/fj7.webp"
           ],
           // 当前选中的背景图片
           currentBackground: 'https://maxiansen.top/Img/blog/public/img/dm1.webp',
@@ -51,9 +59,33 @@
       },
       methods: {
         // 切换背景图片
-        setBackground(image) {
-          this.currentBackground = image;
+        setBackground(image, event) {
+          // 使用 axios 发送 POST 请求
+          fetch(' http://101.200.151.47:8848/api/save_image_path', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image_path: image,
+            }),
+          }).then(response => {
+            console.log("response", response);
+            this.currentBackground = image;
+          })
         },
+      },
+      mounted() {
+        fetch('http://101.200.151.47:8848/api/get_image_path', {
+          method: 'Get',
+        }).then(response => {
+          return response.json();
+          // this.currentBackground = response.data.image_path;
+        }).then(data => {
+          console.log("data", data.data.image_path);
+
+          this.currentBackground = data.data.image_path;
+        })
       },
     }).mount('#app');
   </script>
