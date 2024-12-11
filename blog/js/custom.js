@@ -15,6 +15,11 @@ import "./universe.js";
   // }).then(data => {
   //   document.getElementById("#web_bg").style.background = data.data.image_path;
   // })
+
+  let LOCAL_BG_URL = "";
+
+  let IS_OPEN_ONLINE_BG_CONFIG = true;
+
   const itemStr = localStorage.getItem("image_path");
 
   // 如果没有找到数据，则返回 null
@@ -31,8 +36,19 @@ import "./universe.js";
     return;
   }
 
-  document.getElementById("web_bg").style.background = `url(${item.value})`;
+
+
+  if (IS_OPEN_ONLINE_BG_CONFIG) {
+    fetch('http://101.200.151.47/update_bg/data.json')
+      .then((response) => response.json())
+      .then((data) => LOCAL_BG_URL = data.image_path);
+  } else {
+    LOCAL_BG_URL = item.value;
+  }
+
+  document.getElementById("web_bg").style.background = `url(${LOCAL_BG_URL})`;
   document.getElementById("web_bg").style.backgroundSize = 'cover';
   document.getElementById("web_bg").style.backgroundPosition = 'center';
+
 })();
 // ****************** 背景更新 ******************
