@@ -16,7 +16,7 @@ import "./universe.js";
   //   document.getElementById("#web_bg").style.background = data.data.image_path;
   // })
 
-  let LOCAL_BG_URL = "";
+  let LOCAL_BG_URL = "https://maxiansen.top/Img/blog/public/img/dm7.webp";
 
   let IS_OPEN_ONLINE_BG_CONFIG = true;
 
@@ -39,9 +39,10 @@ import "./universe.js";
 
 
   if (IS_OPEN_ONLINE_BG_CONFIG) {
-    fetch('http://101.200.151.47/update_bg/data.json')
-      .then((response) => response.json())
-      .then((data) => LOCAL_BG_URL = data.image_path);
+    // fetch('http://101.200.151.47/update_bg/data.json')
+    //   .then((response) => response.json())
+    //   .then((data) => LOCAL_BG_URL = data.image_path);
+
   } else {
     LOCAL_BG_URL = item.value;
   }
