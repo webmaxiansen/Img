@@ -121,12 +121,13 @@ body {
   color: var(--text-color);
   line-height: 1.6;
   flex: 1;
+  white-space: pre-line;
 }
 
 /* === 图片样式 === */
 
 .rant-image {
-  width: 30%;
+  height: 150px;
   border-radius: 10px;
   /* margin-top: 10px; */
   cursor: pointer;
