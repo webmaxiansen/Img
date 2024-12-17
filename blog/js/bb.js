@@ -4,7 +4,7 @@ let currentIndex = 0; // 当前添加数据的位置
 // 假设你已经从后端或某个文件加载了所有的 rants 数据
 async function fetchRants() {
   try {
-    const response = await fetch('../data/bb.json'); // 替换为你的数据路径
+    const response = await fetch('https://images.maxiansen.top/blog/data/bb.json'); // 替换为你的数据路径
     if (!response.ok) {
       throw new Error(`HTTP 错误！状态码: ${response.status}`);
     }
