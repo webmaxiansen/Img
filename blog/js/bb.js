@@ -5,7 +5,7 @@ let allRants = []; // 保存所有的唠叨数据
 // 假设你已经从后端或某个文件加载了所有的 rants 数据
 async function fetchRants() {
   try {
-    const response = await fetch('https://maxiansen.top/Img/blog/public/data/bb.json'); // 替换为你的数据路径
+    const response = await fetch('https://images.maxiansen.top/blog/data/bb.json'); // 替换为你的数据路径
     if (!response.ok) {
       throw new Error(`HTTP 错误！状态码: ${response.status}`);
     }
