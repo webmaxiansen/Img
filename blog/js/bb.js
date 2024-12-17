@@ -66,7 +66,7 @@ function renderRants() {
     rantList.appendChild(rantCard);
   });
 
-  currentIndex += 2; // 每次加载2条数据后，更新当前的索引
+  currentIndex += 10; // 每次加载2条数据后，更新当前的索引
 
   // 更新 "加载更多" 按钮状态
   updateLoadMoreButton();
@@ -110,4 +110,5 @@ window.loadMoreRants = async function () {
 };
 
 // 页面加载完成后获取数据并初始化渲染
-document.addEventListener('DOMContentLoaded', fetchRants);
+fetchRants();
+// document.addEventListener('DOMContentLoaded', fetchRants);
