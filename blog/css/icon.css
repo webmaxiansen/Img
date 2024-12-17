@@ -1,0 +1,27 @@
+@font-face {
+  font-family: "xiaoma";
+  /* Project id 4783731 */
+  src: url('//at.alicdn.com/t/c/font_4783731_bddmfq0kcm.woff2?t=1734343522457') format('woff2'),
+    url('//at.alicdn.com/t/c/font_4783731_bddmfq0kcm.woff?t=1734343522457') format('woff'),
+    url('//at.alicdn.com/t/c/font_4783731_bddmfq0kcm.ttf?t=1734343522457') format('truetype');
+}
+
+.xiaoma {
+  font-family: "xiaoma" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-zhifeiji:before {
+  content: "\e70e";
+}
+
+.icon-xinxi:before {
+  content: "\e624";
+}
+
+.icon-valentine_-email-love-message-send:before {
+  content: "\e770";
+}
