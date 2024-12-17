@@ -1,15 +1,16 @@
+let currentIndex = 0; // 当前加载数据的起始索引
+const loadCount = 10; // 每次加载的数据条数，方便后期修改
 let allRants = []; // 保存所有的唠叨数据
-let currentIndex = 0; // 当前添加数据的位置
 
 // 假设你已经从后端或某个文件加载了所有的 rants 数据
 async function fetchRants() {
   try {
-    const response = await fetch('https://images.maxiansen.top/blog/data/bb.json'); // 替换为你的数据路径
+    const response = await fetch('./1.json'); // 替换为你的数据路径
     if (!response.ok) {
       throw new Error(`HTTP 错误！状态码: ${response.status}`);
     }
     allRants = await response.json();
-    renderRants(); // 初始渲染前两条数据
+    renderRants(); // 页面加载完成后，自动加载初始的条数
   } catch (error) {
     console.error('加载数据失败:', error);
   }
@@ -22,10 +23,10 @@ function renderRants() {
   const noMoreText = document.querySelector('.no-more');
   const loadingSpinner = document.querySelector('.loading-spinner');
 
-  // 添加数据前先清空现有内容
-  const newRants = allRants.slice(currentIndex, currentIndex + 2); // 每次加载2条数据
+  // 获取当前需要加载的数据
+  const newRants = allRants.slice(currentIndex, currentIndex + loadCount);
 
-  // 如果已经加载完所有数据
+  // 如果没有更多数据，隐藏加载更多按钮并显示 "到底了"
   if (newRants.length === 0) {
     loadMoreButton.classList.add('hidden');
     noMoreText.classList.remove('hidden');
@@ -66,9 +67,10 @@ function renderRants() {
     rantList.appendChild(rantCard);
   });
 
-  currentIndex += 10; // 每次加载2条数据后，更新当前的索引
+  // 更新当前索引
+  currentIndex += loadCount;
 
-  // 更新 "加载更多" 按钮状态
+  // 更新加载更多按钮状态
   updateLoadMoreButton();
 }
 
@@ -77,15 +79,13 @@ function updateLoadMoreButton() {
   const loadMoreButton = document.querySelector('.load-more');
   const noMoreText = document.querySelector('.no-more');
   const loadingSpinner = document.querySelector('.loading-spinner');
-  const loadMoreText = document.getElementById('loadMoreText');
 
-  // 如果所有数据都已经加载完，隐藏 "加载更多" 按钮
+  // 如果没有更多数据，隐藏 "加载更多" 按钮并显示 "到底了"
   if (currentIndex >= allRants.length) {
-    loadMoreText.textContent = '到底了'; // 设置按钮文字为“到底了”
-    loadingSpinner.classList.add('hidden'); // 隐藏加载中动画
+    loadMoreButton.classList.add('hidden');
     noMoreText.classList.remove('hidden');
   } else {
-    loadMoreText.textContent = '加载更多'; // 恢复“加载更多”
+    loadMoreButton.classList.remove('hidden');
     noMoreText.classList.add('hidden');
   }
 
@@ -103,12 +103,13 @@ window.loadMoreRants = async function () {
 
   // 模拟延迟加载
   setTimeout(() => {
-    renderRants(); // 每次点击加载2条数据
+    renderRants(); // 每次点击加载数据
     loadMoreButton.classList.remove('hidden'); // 显示加载更多按钮
     loadingSpinner.classList.add('hidden'); // 隐藏加载中动画
   }, 1000); // 假设延迟1秒
 };
 
-// 页面加载完成后获取数据并初始化渲染
-fetchRants();
-// document.addEventListener('DOMContentLoaded', fetchRants);
+// 页面加载时自动加载初始的数据
+(() => {
+  fetchRants();
+})()
