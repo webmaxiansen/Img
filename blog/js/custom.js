@@ -12,15 +12,15 @@ import "./title.js";
 
 // ****************** 背景更新 ******************
 (() => {
-  // fetch('http://101.200.151.47:8848/api/get_image_path', {
-  //   method: 'Get',
-  // }).then(response => {
-  //   return response.json();
-  // }).then(data => {
-  //   document.getElementById("#web_bg").style.background = data.data.image_path;
-  // })
+  fetch('http://101.200.151.47:8848/api/get_image_path', {
+    method: 'Get',
+  }).then(response => {
+    return response.json();
+  }).then(data => {
+    console.log("data", data.data.image_path);
+  })
 
-  let LOCAL_BG_URL = "https://maxiansen.top/Img/blog/public/img/dm7.webp";
+  let LOCAL_BG_URL = "https://images.maxiansen.top/blog/public/img/dm7.webp";
 
   let IS_OPEN_ONLINE_BG_CONFIG = true;
 
