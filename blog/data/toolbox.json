@@ -1,0 +1,52 @@
+[
+  {
+    "text": "查看请求头",
+    "url": "https://httpbin.org/headers",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "开发者快速文档",
+    "url": "https://quickref.me/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "chrome调式工具",
+    "url": "chrome://inspect/#devices",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "chrome扩展迷",
+    "url": "https://extfans.com/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "正则解析原理",
+    "url": "https://regexper.com/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "艺术二维码",
+    "url": "https://tool.mkblog.cn/qrbtf/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "要你命三千",
+    "url": "https://tools.gzyunke.cn/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "图片压缩",
+    "url": "https://tinify.cn/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "临时邮箱",
+    "url": "https://www.snapmail.cc/#/",
+    "image": "/img/logo.jpg"
+  },
+  {
+    "text": "Linux命令搜索",
+    "url": "https://linux-command.wxy97.com/",
+    "image": "/img/logo.jpg"
+  }
+]
