@@ -5,6 +5,8 @@
   @import url('./universe.css');
   /* 文章页面波浪 */
   @import url('./article_wave.css');
+  /* 评论提醒 */
+  @import url('./Comment_alert.css');
 
   :root {
     --trans-light: rgba(255, 255, 255, 0.28);
