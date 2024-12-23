@@ -1,5 +1,5 @@
 setInterval(() => {
-  let create_time = Math.round(new Date('2024-05-13 00:00:00').getTime() / 1000); // 将建站时间转换为时间戳（单位：秒）
+  let create_time = Math.round(new Date('2022-02-10 00:00:00').getTime() / 1000); // 将建站时间转换为时间戳（单位：秒）
   let timestamp = Math.round((new Date().getTime()) / 1000); // 获取当前时间的时间戳（单位：秒）
   let second = timestamp - create_time; // 计算网站运行的总时间（单位：秒）
 
