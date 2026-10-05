@@ -141,7 +141,11 @@ const store = {
 			skyLighting: SKY_LIGHT_NORMAL + '',
 			hideControls: IS_HEADER,
 			longExposure: false,
-			scaleFactor: getDefaultScaleFactor()
+			scaleFactor: getDefaultScaleFactor(),
+			// 烟花炸开时拼出的祝福字。textBurstLife 用字符串，方便直接对上设置里的下拉框。
+			textBurstEnabled: true,
+			textBurstMessage: '小胡真漂亮',
+			textBurstLife: '4'
 		}
 	},
 	
@@ -180,6 +184,17 @@ const store = {
 					config.skyLighting = data.skyLighting;
 					config.scaleFactor = data.scaleFactor;
 					break;
+				case '1.3':
+					config.quality = data.quality;
+					config.size = data.size;
+					config.skyLighting = data.skyLighting;
+					config.scaleFactor = data.scaleFactor;
+					if (typeof data.textBurstEnabled === 'boolean') config.textBurstEnabled = data.textBurstEnabled;
+					if (typeof data.textBurstMessage === 'string') config.textBurstMessage = data.textBurstMessage;
+					if (data.textBurstLife === '2' || data.textBurstLife === '4' || data.textBurstLife === '6') {
+						config.textBurstLife = data.textBurstLife;
+					}
+					break;
 				default:
 					throw new Error('version switch should be exhaustive');
 			}
@@ -209,12 +224,15 @@ const store = {
 	persist() {
 		const config = this.state.config;
 		localStorage.setItem('cm_fireworks_data', JSON.stringify({
-			schemaVersion: '1.2',
+			schemaVersion: '1.3',
 			data: {
 				quality: config.quality,
 				size: config.size,
 				skyLighting: config.skyLighting,
-				scaleFactor: config.scaleFactor
+				scaleFactor: config.scaleFactor,
+				textBurstEnabled: config.textBurstEnabled,
+				textBurstMessage: config.textBurstMessage,
+				textBurstLife: config.textBurstLife
 			}
 		}));
 	}
@@ -343,6 +361,18 @@ const helpContent = {
 	longExposure: {
 		header: '保留烟花的火花',
 		body: '可以保留烟花留下的火花'
+	},
+	textBurst: {
+		header: '显示祝福字',
+		body: '开启后，烟花真正炸开时会用粒子拼出下面的祝福文字。关掉后就不再出现。'
+	},
+	textBurstMessage: {
+		header: '祝福文字',
+		body: '炸开时拼出来的那句话，最多 12 个字。默认是「小胡真漂亮」。'
+	},
+	textBurstLife: {
+		header: '停留时间',
+		body: '这句话从出现到完全消失要多久，可以选 2 秒、4 秒或 6 秒。'
 	}
 };
 
@@ -356,7 +386,10 @@ const nodeKeyToHelpKey = {
 	finaleModeLabel: 'finaleMode',
 	hideControlsLabel: 'hideControls',
 	fullscreenLabel: 'fullscreen',
-	longExposureLabel: 'longExposure'
+	longExposureLabel: 'longExposure',
+	textBurstLabel: 'textBurst',
+	textBurstMessageLabel: 'textBurstMessage',
+	textBurstLifeLabel: 'textBurstLife'
 };
 
 
@@ -393,6 +426,14 @@ const appNodes = {
 	fullscreenLabel: '.fullscreen-label',
 	longExposure: '.long-exposure',
 	longExposureLabel: '.long-exposure-label',
+	textBurst: '.text-burst',
+	textBurstLabel: '.text-burst-label',
+	textBurstMessageFormOption: '.form-option--text-burst-message',
+	textBurstMessage: '.text-burst-message',
+	textBurstMessageLabel: '.text-burst-message-label',
+	textBurstLifeFormOption: '.form-option--text-burst-life',
+	textBurstLife: '.text-burst-life',
+	textBurstLifeLabel: '.text-burst-life-label',
 	
 	// Help UI
 	helpModal: '.help-modal',
@@ -435,6 +476,14 @@ function renderApp(state) {
 	appNodes.fullscreen.checked = state.fullscreen;
 	appNodes.longExposure.checked = state.config.longExposure;
 	appNodes.scaleFactor.value = state.config.scaleFactor.toFixed(2);
+	appNodes.textBurst.checked = state.config.textBurstEnabled;
+	if (appNodes.textBurstMessage.value !== state.config.textBurstMessage) {
+		appNodes.textBurstMessage.value = state.config.textBurstMessage;
+	}
+	appNodes.textBurstLife.value = state.config.textBurstLife;
+	const textBurstOn = state.config.textBurstEnabled;
+	appNodes.textBurstMessageFormOption.style.opacity = textBurstOn ? 1 : 0.32;
+	appNodes.textBurstLifeFormOption.style.opacity = textBurstOn ? 1 : 0.32;
 	
 	appNodes.menuInnerWrap.style.opacity = state.openHelpTopic ? 0.12 : 1;
 	appNodes.helpModal.classList.toggle('active', !!state.openHelpTopic);
@@ -475,7 +524,10 @@ function getConfigFromDOM() {
 		longExposure: appNodes.longExposure.checked,
 		hideControls: appNodes.hideControls.checked,
 		// Store value as number.
-		scaleFactor: parseFloat(appNodes.scaleFactor.value)
+		scaleFactor: parseFloat(appNodes.scaleFactor.value),
+		textBurstEnabled: appNodes.textBurst.checked,
+		textBurstMessage: appNodes.textBurstMessage.value.slice(0, 12),
+		textBurstLife: appNodes.textBurstLife.value
 	};
 };
 
@@ -488,6 +540,9 @@ appNodes.finaleMode.addEventListener('click', () => setTimeout(updateConfig, 0))
 appNodes.skyLighting.addEventListener('input', updateConfigNoEvent);
 appNodes.longExposure.addEventListener('click', () => setTimeout(updateConfig, 0));
 appNodes.hideControls.addEventListener('click', () => setTimeout(updateConfig, 0));
+appNodes.textBurst.addEventListener('click', () => setTimeout(updateConfig, 0));
+appNodes.textBurstMessage.addEventListener('input', updateConfigNoEvent);
+appNodes.textBurstLife.addEventListener('input', updateConfigNoEvent);
 appNodes.fullscreen.addEventListener('click', () => setTimeout(toggleFullscreen, 0));
 // Changing scaleFactor requires triggering resize handling code as well.
 appNodes.scaleFactor.addEventListener('input', () => {
@@ -509,6 +564,9 @@ appNodes.helpModalCloseBtn.addEventListener('click', () => {
 appNodes.helpModalOverlay.addEventListener('click', () => {
 	store.setState({ openHelpTopic: null });
 });
+
+// 祝福文字是输入框，回车不要提交表单，否则页面会刷新。
+document.querySelector('.menu form').addEventListener('submit', event => event.preventDefault());
 
 
 
@@ -842,6 +900,12 @@ function init() {
 		[0.5, 0.62, 0.75, 0.9, 1.0, 1.5, 2.0]
 		.map(value => ({ value: value.toFixed(2), label: `${value*100}%` }))
 	);
+
+	setOptionsForSelect(appNodes.textBurstLife, [
+		{ label: '2秒', value: '2' },
+		{ label: '4秒', value: '4' },
+		{ label: '6秒', value: '6' }
+	]);
 	
 	// Begin simulation
 	togglePause(false);
@@ -1216,6 +1280,185 @@ let currentFrame = 0;
 let speedBarOpacity = 0;
 let autoLaunchTime = 0;
 
+/*
+ * 「小胡真漂亮」粒子字
+ *
+ * 烟花真正炸开时，这几个字才用粒子拼出来；粒子寿命结束、拖尾淡掉之后就看不到了。
+ * 粒子从炸点飞向笔画位置，到位后先停住保持亮度，再变暗、消失。
+ * 点要小，字才不会被撑成一串大圆点。
+ * 不走 Star：星星每帧会加重力（speedY += gAcc），拿来排字会散开往下掉。
+ */
+const TEXT_BURST = {
+	message: '小胡真漂亮',
+	// 浅粉、玫红、淡紫，按点轮换。偏亮，黑底上才看得清。
+	colors: ['#ffd6e8', '#ff4d6d', '#ff7ae0'],
+	points: null,
+	aspect: 0.25,
+	active: []
+};
+
+// 把文字画到离屏画布上，按像素抽成相对坐标。只做一次。
+function sampleTextPoints() {
+	const text = TEXT_BURST.message;
+	const fontSize = 200;
+	const letterSpacing = fontSize * 0.12;
+	const canvas = document.createElement('canvas');
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	ctx.font = `400 ${fontSize}px sans-serif`;
+	let textWidth = 0;
+	for (let i = 0; i < text.length; i++) {
+		textWidth += ctx.measureText(text[i]).width;
+		if (i < text.length - 1) textWidth += letterSpacing;
+	}
+	const pad = 16;
+	const width = Math.ceil(textWidth + pad * 2);
+	const height = Math.ceil(fontSize * 1.25);
+	canvas.width = width;
+	canvas.height = height;
+	ctx.font = `400 ${fontSize}px sans-serif`;
+	ctx.fillStyle = '#fff';
+	ctx.textBaseline = 'middle';
+	let cursor = pad;
+	for (let i = 0; i < text.length; i++) {
+		ctx.fillText(text[i], cursor, height / 2);
+		cursor += ctx.measureText(text[i]).width + letterSpacing;
+	}
+	const data = ctx.getImageData(0, 0, width, height).data;
+	const gap = 4;
+	const raw = [];
+	for (let y = 0; y < height; y += gap) {
+		for (let x = 0; x < width; x += gap) {
+			if (data[(y * width + x) * 4 + 3] > 128) {
+				raw.push({ x: x / width, y: y / height });
+			}
+		}
+	}
+	// 点密一些，笔画才连得上。一千个点左右，不会卡。
+	const target = 1100;
+	if (raw.length > target) {
+		const step = raw.length / target;
+		const picked = [];
+		for (let i = 0; i < target; i++) {
+			picked.push(raw[Math.floor(i * step)]);
+		}
+		TEXT_BURST.points = picked;
+	} else {
+		TEXT_BURST.points = raw;
+	}
+	TEXT_BURST.aspect = height / width;
+}
+
+// 从这一发烟花的炸点生成一整串文字粒子。已经有一串时不再叠，避免连发糊成一团。
+// 开关、文字和停留时间读设置面板，不在这里写死。
+function spawnTextBurst(originX, originY) {
+	if (TEXT_BURST.active.length) return;
+	if (!store.state.config.textBurstEnabled) return;
+	const message = (store.state.config.textBurstMessage || '').trim().slice(0, 12);
+	if (!message) return;
+	if (message !== TEXT_BURST.message) {
+		TEXT_BURST.message = message;
+		TEXT_BURST.points = null;
+	}
+	if (!TEXT_BURST.points) sampleTextPoints();
+	const points = TEXT_BURST.points;
+	if (!points || !points.length || !stageW || !stageH) return;
+
+	const boxW = stageW * (stageW < 700 ? 0.72 : 0.5);
+	const boxH = boxW * TEXT_BURST.aspect;
+	const left = (stageW - boxW) / 2;
+	const top = stageH * 0.36 - boxH / 2;
+	const seconds = +store.state.config.textBurstLife;
+	const life = (seconds === 2 || seconds === 6 ? seconds : 4) * 1000;
+	const colors = TEXT_BURST.colors;
+	// 半径收小，笔画保持细，不要叠成大圆球
+	const size = Math.max(1.15, boxW / 520);
+
+	for (let i = 0; i < points.length; i++) {
+		const point = points[i];
+		const delay = Math.random() * 0.08;
+		TEXT_BURST.active.push({
+			sx: originX,
+			sy: originY,
+			tx: left + point.x * boxW,
+			ty: top + point.y * boxH,
+			x: originX,
+			y: originY,
+			prevX: originX,
+			prevY: originY,
+			color: colors[i % colors.length],
+			size,
+			life,
+			fullLife: life,
+			// 先在炸点停一下，再飞向笔画；排好后保持亮度，最后再淡出
+			delay,
+			arrive: delay + 0.26,
+			alpha: 0
+		});
+	}
+}
+
+function updateTextBurst(timeStep) {
+	const particles = TEXT_BURST.active;
+	for (let i = particles.length - 1; i >= 0; i--) {
+		const p = particles[i];
+		p.life -= timeStep;
+		if (p.life <= 0) {
+			particles.splice(i, 1);
+			continue;
+		}
+		const age = 1 - p.life / p.fullLife;
+		let travel = 0;
+		if (age > p.delay) {
+			travel = age >= p.arrive ? 1 : (age - p.delay) / (p.arrive - p.delay);
+		}
+		const eased = 1 - Math.pow(1 - travel, 3);
+		p.prevX = p.x;
+		p.prevY = p.y;
+		p.x = p.sx + (p.tx - p.sx) * eased;
+		p.y = p.sy + (p.ty - p.sy) * eased;
+		// 排好之后保持满亮度，只在最后一段才变暗，不然字刚成形就看不清
+		if (age < p.delay) p.alpha = p.delay ? age / p.delay : 1;
+		else if (age > 0.72) p.alpha = (1 - age) / 0.28;
+		else p.alpha = 1;
+	}
+}
+
+function renderTextBurst(trailsCtx, mainCtx) {
+	const particles = TEXT_BURST.active;
+	if (!particles.length) return;
+	trailsCtx.save();
+	mainCtx.save();
+	trailsCtx.lineCap = 'round';
+	for (let i = 0; i < particles.length; i++) {
+		const p = particles[i];
+		const dx = p.x - p.prevX;
+		const dy = p.y - p.prevY;
+		// 飞行时在拖尾层留一道光，排好后不再画线，避免把笔画抹糊
+		if (dx * dx + dy * dy > 0.4) {
+			trailsCtx.globalAlpha = p.alpha;
+			trailsCtx.strokeStyle = p.color;
+			trailsCtx.lineWidth = p.size;
+			trailsCtx.beginPath();
+			trailsCtx.moveTo(p.prevX, p.prevY);
+			trailsCtx.lineTo(p.x, p.y);
+			trailsCtx.stroke();
+		}
+		// 清晰的点画在每帧清空的主画布上，不会被拖尾的淡出吃掉
+		mainCtx.globalAlpha = p.alpha;
+		mainCtx.fillStyle = p.color;
+		mainCtx.beginPath();
+		mainCtx.arc(p.x, p.y, p.size, 0, PI_2);
+		mainCtx.fill();
+		mainCtx.globalAlpha = p.alpha * 0.9;
+		mainCtx.fillStyle = '#fff';
+		mainCtx.beginPath();
+		mainCtx.arc(p.x, p.y, p.size * 0.35, 0, PI_2);
+		mainCtx.fill();
+	}
+	trailsCtx.restore();
+	mainCtx.restore();
+}
+
 function updateSpeedFromEvent(event) {
 	if (isUpdatingSpeed || event.y >= mainStage.height - 44) {
 		// On phones it's hard to hit the edge pixels in order to set speed at 0 or 1, so some padding is provided to make that easier.
@@ -1263,6 +1506,8 @@ function update(frameTime, lag) {
 	const speed = simSpeed * lag;
 	
 	updateGlobals(timeStep, lag);
+	// 文字粒子单独更新：到位后停住变暗，不吃重力
+	updateTextBurst(timeStep);
 	
 	const starDrag = 1 - (1 - Star.airDrag) * speed;
 	const starDragHeavy = 1 - (1 - Star.airDragHeavy) * speed;
@@ -1444,6 +1689,9 @@ function render(speed) {
 		});
 		trailsCtx.stroke();
 	});
+
+	// 飞行拖尾画在拖尾层，成形的字画在主画布上，方便看清
+	renderTextBurst(trailsCtx, mainCtx);
 	
 	
 	// Render speed bar if visible
@@ -1975,6 +2223,8 @@ class Shell {
 			const sizeDifferenceFromMaxSize = Math.min(maxDiff, shellSizeSelector() - this.shellSize);
 			const soundScale = (1 - sizeDifferenceFromMaxSize / maxDiff) * 0.3 + 0.7;
 			soundManager.playSound('burst', soundScale);
+			// 只有真正发射出去的这一发才拼字。内部的小爆炸没有 comet，不触发。
+			spawnTextBurst(x, y);
 		}
 	}
 }

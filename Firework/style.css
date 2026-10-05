@@ -221,6 +221,19 @@ body {
     background-color: black;
 }
 
+.menu .form-option--text input {
+    display: block;
+    width: 50%;
+    height: 30px;
+    font-size: 1rem;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: rgba(255, 255, 255, 0.8);
+    letter-spacing: 0.06em;
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 0 8px;
+}
+
 .menu .form-option--checkbox input {
     display: block;
     width: 26px;
