@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>夜里的照片</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #07060c; }
+    body { font-family: "Songti SC", "STSong", "PingFang SC", "Hiragino Sans GB", serif; color: #fff6ee; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .vignette {
+      position: fixed; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at center, transparent 42%, rgba(5, 4, 10, 0.55) 100%);
+    }
+    .hud { position: fixed; inset: 0; pointer-events: none; }
+    .brand, .hint, .cap, .date {
+      position: absolute; left: 0; right: 0; text-align: center;
+    }
+    .brand {
+      top: 22px; font-size: 13px; letter-spacing: 0.62em;
+      color: rgba(255, 236, 214, 0.72);
+    }
+    .cap {
+      bottom: 86px; font-size: clamp(32px, 4.4vw, 58px); letter-spacing: 0.18em;
+      opacity: 0; transform: translateY(12px); transition: opacity 0.6s ease, transform 0.6s ease;
+      text-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    }
+    .date {
+      bottom: 58px; font-size: 13px; letter-spacing: 0.42em;
+      color: rgba(255, 228, 196, 0.72);
+      opacity: 0; transition: opacity 0.6s ease;
+    }
+    .cap.show, .date.show { opacity: 1; transform: none; }
+    .hint {
+      bottom: 26px; font-size: 14px; letter-spacing: 0.22em;
+      color: rgba(255, 244, 232, 0.78);
+      transition: opacity 0.4s ease;
+    }
+    .hint.hide { opacity: 0; }
+    .add {
+      pointer-events: auto; position: absolute; top: 18px; right: 18px;
+      font-size: 13px; letter-spacing: 0.14em; color: #fff6ee;
+      border: 1px solid rgba(255, 226, 190, 0.35); border-radius: 999px;
+      padding: 8px 14px; background: rgba(255, 244, 230, 0.06); cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .add input { display: none; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="vignette"></div>
+  <div class="hud">
+    <p class="brand">夜里的照片</p>
+    <p class="cap" id="cap"></p>
+    <p class="date" id="date"></p>
+    <p class="hint" id="hint">点开一张，看看里面</p>
+    <label class="add">放入照片<input id="files" type="file" accept="image/*" multiple /></label>
+  </div>
+  <script type="module">
+    import * as THREE from "three";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+    const SCENES = [
+      ["海边的月亮", "08.12", drawMoon, 0xffd7a2],
+      ["路灯下", "07.21", drawLamp, 0xffe1a8],
+      ["晚霞", "10.01", drawDusk, 0xf7b7c8],
+      ["一把伞", "06.28", drawUmbrella, 0xf4b7c6],
+      ["桥上的灯", "08.30", drawBridge, 0xf2d48a],
+      ["旧书架", "04.16", drawBooks, 0xe7c4a2],
+      ["未寄出的信", "05.18", drawLetter, 0xf0d2c4],
+      ["初雪", "12.24", drawSnow, 0xd5e4f4],
+      ["下雨的窗", "09.02", drawRain, 0xc9d6ea],
+      ["夜行列车", "06.09", drawTrain, 0xf2c14e],
+      ["热牛奶", "11.03", drawCup, 0xf3e2cf],
+      ["琴键", "03.14", drawPiano, 0xf7f4ef],
+      ["山顶的星", "09.19", drawHill, 0xd5def8],
+      ["灯塔", "01.07", drawTower, 0xffd0b0],
+      ["回程的路", "02.14", drawRoad, 0xf2d48a]
+    ];
+
+    const SPOTS = [
+      [-2.15, 0.35, -1.15, 1.18, -0.08, 0.12],
+      [2.05, 0.85, -1.7, 0.98, 0.1, -0.08],
+      [0.15, -1.45, -2.15, 1.05, 0.05, 0.04],
+      [-4.35, -0.15, -3.1, 0.78, -0.14, 0.2],
+      [4.15, 0.25, -2.7, 0.84, 0.12, -0.16],
+      [-1.15, 2.35, -3.6, 0.66, -0.06, 0.05],
+      [2.55, -2.15, -3.4, 0.7, 0.08, 0.1],
+      [0.35, 0.15, -5.4, 0.82, 0.03, -0.04],
+      [-3.15, 1.55, -5.8, 0.58, -0.1, 0.14],
+      [3.35, -0.85, -6.1, 0.6, 0.11, -0.1],
+      [-5.05, -1.65, -4.6, 0.52, -0.16, 0.18],
+      [5.15, 1.75, -4.9, 0.5, 0.14, -0.12],
+      [-0.55, -2.75, -6.8, 0.48, 0.06, 0.08],
+      [1.35, 2.75, -7.2, 0.46, -0.05, -0.06],
+      [-2.4, 0.05, -8.4, 0.4, 0.08, 0.16],
+      [2.7, 0.55, -9.1, 0.38, -0.07, -0.12],
+      [0.1, 1.35, -10.2, 0.34, 0.04, 0.02],
+      [-3.8, 2.15, -7.6, 0.42, -0.12, 0.1]
+    ];
+
+    const hint = document.getElementById("hint");
+    const cap = document.getElementById("cap");
+    const dateEl = document.getElementById("date");
+    const field = new THREE.Group();
+    const cards = [];
+    let focused = null;
+    let dragging = false;
+    let lastX = 0;
+    let moved = 0;
+    let dragYaw = 0;
+    let spin = 0;
+    const pointer = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    const focusWorld = new THREE.Vector3(0, 0.46, 2.45);
+    const YAW_LIMIT = 0.55;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.02;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x09070f);
+    scene.fog = new THREE.Fog(0x09070f, 12, 24);
+    const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 50);
+    camera.position.set(0, 0.2, 11);
+
+    scene.add(field);
+
+    function softTex() {
+      const c = document.createElement("canvas");
+      c.width = c.height = 128;
+      const g = c.getContext("2d");
+      const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grd.addColorStop(0, "rgba(255,248,230,1)");
+      grd.addColorStop(0.35, "rgba(255,214,160,0.55)");
+      grd.addColorStop(1, "rgba(255,214,160,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 128, 128);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    const glowMap = softTex();
+
+    function photoTexture(title, date, draw) {
+      const c = document.createElement("canvas");
+      c.width = 640;
+      c.height = 820;
+      const g = c.getContext("2d");
+      g.fillStyle = "#f4efe6";
+      g.fillRect(0, 0, 640, 820);
+      g.save();
+      g.beginPath();
+      g.rect(36, 36, 568, 628);
+      g.clip();
+      draw(g);
+      g.restore();
+      g.strokeStyle = "rgba(186, 142, 78, 0.9)";
+      g.lineWidth = 2.5;
+      g.strokeRect(36, 36, 568, 628);
+      g.fillStyle = "#5c463c";
+      g.font = "32px Songti SC, STSong, serif";
+      g.textAlign = "center";
+      g.fillText(title, 320, 724);
+      g.fillStyle = "#b1978b";
+      g.font = "18px PingFang SC, sans-serif";
+      g.fillText(date, 320, 764);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    function fileTexture(file) {
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement("canvas");
+          c.width = 640;
+          c.height = 820;
+          const g = c.getContext("2d");
+          g.fillStyle = "#f4efe6";
+          g.fillRect(0, 0, 640, 820);
+          const scale = Math.max(568 / img.width, 628 / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          g.save();
+          g.beginPath();
+          g.rect(36, 36, 568, 628);
+          g.clip();
+          g.drawImage(img, 36 + (568 - w) / 2, 36 + (628 - h) / 2, w, h);
+          g.restore();
+          g.strokeStyle = "rgba(186, 142, 78, 0.9)";
+          g.lineWidth = 2.5;
+          g.strokeRect(36, 36, 568, 628);
+          const name = file.name.replace(/\.[^.]+$/, "").slice(0, 12);
+          g.fillStyle = "#5c463c";
+          g.font = "32px Songti SC, STSong, serif";
+          g.textAlign = "center";
+          g.fillText(name, 320, 744);
+          const tex = new THREE.CanvasTexture(c);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 8;
+          URL.revokeObjectURL(url);
+          resolve({ tex, title: name });
+        };
+        img.src = url;
+      });
+    }
+
+    function makeCard(scene, spot, index) {
+      const [title, date, draw, glowColor] = scene;
+      const [x, y, z, scale, rotZ, rotY] = spot;
+      const group = new THREE.Group();
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowMap,
+        color: glowColor,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0
+      }));
+      glow.scale.set(2.35, 2.45, 1);
+      glow.position.z = -0.2;
+      glow.renderOrder = 0;
+      glow.raycast = () => {};
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.52, 1.95),
+        new THREE.MeshBasicMaterial({ map: photoTexture(title, date, draw), transparent: true, opacity: 0, depthWrite: true })
+      );
+      mesh.renderOrder = 2;
+      group.add(glow);
+      group.add(mesh);
+      group.position.set(x, y + 2.4, z - 3.2);
+      group.rotation.set(0, rotY, rotZ);
+      field.add(group);
+      const card = {
+        group, mesh, glow, title, date,
+        phase: index * 1.37,
+        home: new THREE.Vector3(x, y, z),
+        homeQuat: group.quaternion.clone(),
+        base: scale,
+        hover: 1
+      };
+      cards.push(card);
+    }
+
+    SPOTS.forEach((spot, index) => makeCard(SCENES[index % SCENES.length], spot, index));
+
+    const dustCount = 900;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i += 1) {
+      dustPos[i * 3] = (Math.random() - 0.5) * 16;
+      dustPos[i * 3 + 1] = (Math.random() - 0.5) * 10;
+      dustPos[i * 3 + 2] = -Math.random() * 14;
+    }
+    dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+      map: glowMap,
+      color: 0xffe6c4,
+      size: 0.045,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true
+    }));
+    field.add(dust);
+
+    const cursor = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowMap,
+      color: 0xffe7c2,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    }));
+    cursor.scale.set(1.6, 1.6, 1);
+    scene.add(cursor);
+    const cursorTarget = new THREE.Vector3();
+    const hitPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 1.2);
+
+    let audioCtx = null;
+    function chime(freq) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtx) audioCtx = new Ctx();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.03, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.75);
+    }
+
+    function showFocus(card) {
+      focused = card;
+      cap.textContent = card.title;
+      dateEl.textContent = card.date;
+      cap.classList.add("show");
+      dateEl.classList.add("show");
+      hint.classList.add("hide");
+      chime(494);
+    }
+    function clearFocus() {
+      focused = null;
+      cap.classList.remove("show");
+      dateEl.classList.remove("show");
+      hint.classList.remove("hide");
+      hint.textContent = "点开一张，看看里面";
+    }
+
+    function setPointer(event) {
+      pointer.x = (event.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+    }
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      lastX = event.clientX;
+      moved = 0;
+      renderer.domElement.setPointerCapture(event.pointerId);
+    });
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      setPointer(event);
+      if (!dragging || focused) return;
+      const dx = event.clientX - lastX;
+      lastX = event.clientX;
+      moved += Math.abs(dx);
+      spin = -dx * 0.0032;
+      dragYaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, dragYaw + spin));
+    });
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      dragging = false;
+      if (moved > 8) return;
+      setPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(cards.map((card) => card.mesh), false);
+      if (!hits.length) {
+        clearFocus();
+        return;
+      }
+      const mesh = hits[0].object;
+      const card = cards.find((item) => item.mesh === mesh);
+      if (focused === card) clearFocus();
+      else showFocus(card);
+    });
+    window.addEventListener("wheel", (event) => {
+      if (focused) return;
+      dragYaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, dragYaw + Math.sign(event.deltaY) * 0.06));
+    }, { passive: true });
+
+    document.getElementById("files").addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files || []);
+      for (let i = 0; i < files.length && i < cards.length; i += 1) {
+        const item = await fileTexture(files[i]);
+        cards[i].mesh.material.map.dispose();
+        cards[i].mesh.material.map = item.tex;
+        cards[i].mesh.material.needsUpdate = true;
+        cards[i].title = item.title;
+        cards[i].date = "";
+      }
+      hint.textContent = "已经换上你的照片";
+      hint.classList.remove("hide");
+    });
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.22, 0.48, 0.9));
+    composer.addPass(new OutputPass());
+
+    const clock = new THREE.Clock();
+    const tmp = new THREE.Vector3();
+    function smoothstep(v) {
+      const x = Math.min(1, Math.max(0, v));
+      return x * x * (3 - 2 * x);
+    }
+
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.elapsedTime;
+      const intro = smoothstep(time / 1.6);
+      camera.position.z += ((focused ? 6.15 : 5.65) - camera.position.z) * 0.035;
+      camera.position.x += ((focused ? 0 : pointer.x * 0.35) - camera.position.x) * 0.04;
+      camera.position.y += ((focused ? 0.15 : 0.2 + pointer.y * 0.18) - camera.position.y) * 0.04;
+      camera.lookAt(0, 0.05, -2);
+
+      if (!dragging && !focused) {
+        dragYaw += spin;
+        spin *= 0.92;
+        dragYaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, dragYaw));
+        const idle = Math.sin(time * 0.22) * 0.1;
+        if (Math.abs(spin) < 0.0006) dragYaw += (idle - dragYaw) * 0.012;
+      }
+      const yawTarget = focused ? 0 : dragYaw + pointer.x * 0.18;
+      field.rotation.y += (yawTarget - field.rotation.y) * 0.045;
+      field.rotation.x += ((focused ? 0 : pointer.y * -0.06) - field.rotation.x) * 0.045;
+
+      field.updateMatrixWorld(true);
+      const localFocus = field.worldToLocal(focusWorld.clone());
+      raycaster.setFromCamera(pointer, camera);
+      const hoverHit = focused ? null : raycaster.intersectObjects(cards.map((card) => card.mesh), false)[0];
+
+      cards.forEach((card) => {
+        const appear = smoothstep((time - card.phase * 0.035) / 1.15);
+        const isFocus = card === focused;
+        const float = tmp.set(
+          Math.sin(time * 0.33 + card.phase) * 0.16,
+          Math.cos(time * 0.27 + card.phase) * 0.2,
+          Math.sin(time * 0.21 + card.phase * 1.7) * 0.08
+        );
+        const desired = isFocus
+          ? localFocus
+          : card.home.clone().addScaledVector(float, appear);
+        card.group.position.lerp(desired, isFocus ? 0.065 : 0.14);
+        if (isFocus) card.group.lookAt(camera.position);
+        else card.group.quaternion.slerp(card.homeQuat, 0.08);
+
+        const hovering = hoverHit && hoverHit.object === card.mesh;
+        card.hover += ((hovering ? 1.07 : 1) - card.hover) * 0.12;
+        const s = (isFocus ? 1.16 : card.base * card.hover) * (0.35 + 0.65 * appear);
+        card.group.scale.lerp(new THREE.Vector3(s, s, s), 0.1);
+        const dim = focused && !isFocus ? 0.12 : 1;
+        const opacity = dim * appear;
+        card.mesh.material.opacity += (opacity - card.mesh.material.opacity) * 0.12;
+        card.mesh.material.depthWrite = true;
+        const glowOp = (isFocus ? 0.28 : hovering ? 0.34 : 0.2) * appear * (focused && !isFocus ? 0.15 : 1);
+        card.glow.material.opacity += (glowOp - card.glow.material.opacity) * 0.1;
+        card.group.renderOrder = isFocus ? 5 : 0;
+      });
+
+      dust.rotation.y = time * 0.012;
+
+      if (raycaster.ray.intersectPlane(hitPlane, cursorTarget)) {
+        cursor.position.lerp(cursorTarget, 0.08);
+      }
+      cursor.material.opacity = focused ? 0.05 : 0.4 + Math.sin(time * 2) * 0.08;
+
+      composer.render();
+      requestAnimationFrame(tick);
+    }
+    tick();
+    window.__wallReady = true;
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setSize(innerWidth, innerHeight);
+    });
+
+    function drawMoon(g) {
+      const sky = g.createLinearGradient(0, 0, 0, 640);
+      sky.addColorStop(0, "#141833");
+      sky.addColorStop(0.55, "#3a3d78");
+      sky.addColorStop(1, "#e39a86");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, 572, 640);
+      const halo = g.createRadialGradient(380, 168, 10, 380, 168, 180);
+      halo.addColorStop(0, "rgba(255,246,214,0.95)");
+      halo.addColorStop(0.25, "rgba(255,214,160,0.35)");
+      halo.addColorStop(1, "rgba(255,214,160,0)");
+      g.fillStyle = halo;
+      g.fillRect(0, 0, 572, 400);
+      g.fillStyle = "#fff8e4";
+      g.beginPath();
+      g.arc(380, 168, 54, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#1a4668";
+      g.fillRect(0, 430, 572, 210);
+      g.fillStyle = "rgba(255,246,220,0.35)";
+      g.fillRect(348, 430, 64, 180);
+    }
+    function drawLamp(g) {
+      g.fillStyle = "#1a1428";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#2c2636";
+      g.fillRect(0, 470, 572, 170);
+      const halo = g.createRadialGradient(286, 150, 8, 286, 210, 260);
+      halo.addColorStop(0, "rgba(255,220,150,0.95)");
+      halo.addColorStop(0.35, "rgba(255,190,110,0.28)");
+      halo.addColorStop(1, "rgba(255,190,110,0)");
+      g.fillStyle = halo;
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#ece6dc";
+      g.fillRect(280, 150, 10, 320);
+      g.fillStyle = "#ffe7b8";
+      g.beginPath();
+      g.arc(285, 148, 34, 0, Math.PI * 2);
+      g.fill();
+    }
+    function drawDusk(g) {
+      const sky = g.createLinearGradient(0, 0, 0, 640);
+      sky.addColorStop(0, "#2c3568");
+      sky.addColorStop(0.42, "#e07aa8");
+      sky.addColorStop(1, "#f6c98a");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#3a2434";
+      g.beginPath();
+      g.moveTo(0, 500);
+      g.lineTo(160, 390);
+      g.lineTo(300, 470);
+      g.lineTo(572, 330);
+      g.lineTo(572, 640);
+      g.lineTo(0, 640);
+      g.fill();
+      g.fillStyle = "rgba(255,236,190,0.85)";
+      g.beginPath();
+      g.arc(430, 250, 36, 0, Math.PI * 2);
+      g.fill();
+    }
+    function drawUmbrella(g) {
+      const sky = g.createLinearGradient(0, 0, 0, 640);
+      sky.addColorStop(0, "#9aa8be");
+      sky.addColorStop(1, "#d5dbe6");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#f3a9be";
+      g.beginPath();
+      g.arc(286, 250, 168, Math.PI, 0);
+      g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.45)";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(286, 250);
+      g.lineTo(160, 250);
+      g.moveTo(286, 250);
+      g.lineTo(412, 250);
+      g.stroke();
+      g.strokeStyle = "#5c463c";
+      g.lineWidth = 6;
+      g.beginPath();
+      g.moveTo(286, 250);
+      g.lineTo(300, 520);
+      g.stroke();
+      g.fillStyle = "#3c4454";
+      g.fillRect(214, 390, 26, 130);
+      g.fillRect(332, 400, 26, 120);
+    }
+    function drawBridge(g) {
+      g.fillStyle = "#152844";
+      g.fillRect(0, 0, 572, 640);
+      const glow = g.createRadialGradient(286, 300, 10, 286, 340, 280);
+      glow.addColorStop(0, "rgba(242,212,138,0.45)");
+      glow.addColorStop(1, "rgba(242,212,138,0)");
+      g.fillStyle = glow;
+      g.fillRect(0, 0, 572, 640);
+      g.strokeStyle = "#f2d48a";
+      g.lineWidth = 5;
+      g.beginPath();
+      g.arc(286, 540, 230, Math.PI, 0);
+      g.stroke();
+      g.fillStyle = "#f2d48a";
+      for (let i = 0; i < 7; i += 1) g.fillRect(86 + i * 68, 292, 7, 7);
+      g.fillStyle = "rgba(242,212,138,0.22)";
+      g.fillRect(0, 500, 572, 140);
+    }
+    function drawBooks(g) {
+      g.fillStyle = "#6a4638";
+      g.fillRect(0, 0, 572, 640);
+      const colors = ["#f2d48a", "#e7a0b0", "#f7f1e6", "#c9b6e8", "#8fb8c9", "#e7c2a0"];
+      colors.forEach((color, i) => {
+        g.fillStyle = color;
+        g.fillRect(78 + i * 72, 150, 54, 380);
+      });
+    }
+    function drawLetter(g) {
+      g.fillStyle = "#ead8c6";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#fffaf3";
+      g.fillRect(78, 70, 416, 500);
+      g.strokeStyle = "#e7b7c4";
+      g.lineWidth = 2;
+      g.strokeRect(98, 96, 376, 448);
+      g.fillStyle = "#d9c4b6";
+      for (let i = 0; i < 7; i += 1) g.fillRect(130, 170 + i * 46, 280 - (i % 3) * 36, 7);
+    }
+    function drawSnow(g) {
+      const sky = g.createLinearGradient(0, 0, 0, 640);
+      sky.addColorStop(0, "#c5d7ea");
+      sky.addColorStop(1, "#f7f4ef");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#fff";
+      g.fillRect(0, 455, 572, 185);
+      g.fillStyle = "#8aa0b4";
+      g.fillRect(246, 292, 86, 164);
+      g.beginPath();
+      g.moveTo(226, 292);
+      g.lineTo(289, 228);
+      g.lineTo(352, 292);
+      g.fill();
+      g.fillStyle = "#ffffff";
+      for (let i = 0; i < 36; i += 1) g.fillRect((i * 97) % 560, (i * 53) % 480, 4, 4);
+    }
+    function drawRain(g) {
+      g.fillStyle = "#667f9e";
+      g.fillRect(0, 0, 572, 640);
+      g.strokeStyle = "rgba(255,255,255,0.45)";
+      g.lineWidth = 2;
+      for (let i = 0; i < 26; i += 1) {
+        g.beginPath();
+        g.moveTo(16 + i * 22, 8);
+        g.lineTo(4 + i * 22, 86);
+        g.stroke();
+      }
+      g.fillStyle = "#f3c99a";
+      g.fillRect(392, 70, 140, 500);
+      const warm = g.createRadialGradient(460, 220, 10, 460, 260, 180);
+      warm.addColorStop(0, "rgba(243,201,154,0.7)");
+      warm.addColorStop(1, "rgba(243,201,154,0)");
+      g.fillStyle = warm;
+      g.fillRect(300, 40, 272, 400);
+    }
+    function drawTrain(g) {
+      g.fillStyle = "#141c30";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#0c1424";
+      g.fillRect(48, 36, 476, 568);
+      for (let i = 0; i < 8; i += 1) {
+        g.fillStyle = i % 2 ? "#f2c14e" : "#f27d9a";
+        g.fillRect(78, 78 + i * 62, 90 + (i % 3) * 36, 14);
+      }
+    }
+    function drawCup(g) {
+      g.fillStyle = "#f3e2cf";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#fff";
+      g.fillRect(186, 196, 190, 176);
+      g.beginPath();
+      g.ellipse(281, 372, 108, 36, 0, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "#e6e0da";
+      g.lineWidth = 8;
+      g.beginPath();
+      g.arc(392, 280, 34, -1, 1);
+      g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.7)";
+      g.fillRect(230, 120, 18, 40);
+      g.fillRect(270, 96, 14, 50);
+    }
+    function drawPiano(g) {
+      g.fillStyle = "#241e24";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#f7f4ef";
+      for (let i = 0; i < 10; i += 1) g.fillRect(46 + i * 50, 176, 42, 290);
+      g.fillStyle = "#161616";
+      for (let i = 0; i < 8; i += 1) if (i !== 2 && i !== 6) g.fillRect(74 + i * 50, 176, 22, 168);
+    }
+    function drawHill(g) {
+      g.fillStyle = "#10162c";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#fff";
+      for (let i = 0; i < 48; i += 1) g.fillRect((i * 89) % 560, (i * 47) % 340, 3, 3);
+      g.fillStyle = "#243044";
+      g.beginPath();
+      g.moveTo(0, 640);
+      g.lineTo(0, 440);
+      g.lineTo(210, 300);
+      g.lineTo(390, 470);
+      g.lineTo(572, 250);
+      g.lineTo(572, 640);
+      g.fill();
+    }
+    function drawTower(g) {
+      const sky = g.createLinearGradient(0, 0, 0, 640);
+      sky.addColorStop(0, "#1a2744");
+      sky.addColorStop(1, "#e0927e");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#f4efe6";
+      g.beginPath();
+      g.moveTo(248, 560);
+      g.lineTo(286, 110);
+      g.lineTo(324, 560);
+      g.fill();
+      g.fillStyle = "rgba(255,226,160,0.4)";
+      g.beginPath();
+      g.moveTo(286, 168);
+      g.lineTo(530, 230);
+      g.lineTo(286, 246);
+      g.fill();
+    }
+    function drawRoad(g) {
+      g.fillStyle = "#262b42";
+      g.fillRect(0, 0, 572, 640);
+      g.fillStyle = "#3a425c";
+      g.beginPath();
+      g.moveTo(196, 640);
+      g.lineTo(286, 200);
+      g.lineTo(376, 640);
+      g.fill();
+      g.fillStyle = "#f2d48a";
+      for (let i = 0; i < 6; i += 1) g.fillRect(274, 270 + i * 58, 22, 26);
+    }
+  </script>
+</body>
+</html>

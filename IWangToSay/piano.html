@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>一架钢琴</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #07060c; }
+    body { font-family: "Songti SC", "STSong", "PingFang SC", "Hiragino Sans GB", serif; color: #fff8ef; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .vignette {
+      position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 46%, rgba(4, 3, 8, 0.62) 100%);
+    }
+    .hud { position: fixed; inset: 0; pointer-events: none; }
+    .brand, .hint, .note, .song-name {
+      position: absolute; left: 0; right: 0; text-align: center;
+    }
+    .brand {
+      top: 22px; font-size: 13px; letter-spacing: 0.64em;
+      color: rgba(255, 236, 214, 0.78);
+    }
+    .note {
+      top: 18%; font-size: clamp(42px, 6vw, 72px); letter-spacing: 0.28em;
+      opacity: 0; transform: translateY(8px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      text-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    }
+    .note.show { opacity: 1; transform: none; }
+    .hint {
+      bottom: 26px; font-size: 14px; letter-spacing: 0.2em;
+      color: rgba(255, 244, 232, 0.78);
+    }
+    .song-name {
+      top: 54px; font-size: 18px; letter-spacing: 0.42em;
+      color: rgba(255, 236, 214, 0.9);
+      opacity: 0; transition: opacity 0.4s ease;
+    }
+    .song-name.show { opacity: 1; }
+    .play, .octaves button {
+      pointer-events: auto;
+      font-size: 13px; letter-spacing: 0.16em; color: #fff6ee;
+      border: 1px solid rgba(255, 226, 190, 0.38); border-radius: 999px;
+      padding: 8px 16px; background: rgba(255, 244, 230, 0.06); cursor: pointer;
+    }
+    .play { position: absolute; top: 18px; right: 18px; }
+    .octaves {
+      pointer-events: auto; position: absolute; top: 18px; left: 18px;
+      display: flex; gap: 8px;
+    }
+    .octaves button:disabled { opacity: 0.35; cursor: default; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="vignette"></div>
+  <div class="hud">
+    <p class="brand">一架钢琴</p>
+    <p class="song-name" id="songName"></p>
+    <p class="note" id="note"></p>
+    <p class="hint">点琴键，或按键盘 A S D F G H J</p>
+    <div class="octaves">
+      <button id="octDown" type="button">低八度</button>
+      <button id="octUp" type="button">高八度</button>
+    </div>
+    <button class="play" id="song" type="button">听一段</button>
+  </div>
+  <script type="module">
+    import * as THREE from "three";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+    const NAMES = ["哆", "升哆", "来", "升来", "咪", "发", "升发", "嗦", "升嗦", "啦", "升啦", "唏"];
+    const MIDI_MIN = 36;
+    const MIDI_MAX = 96;
+    const KEY_OFFSET = {
+      a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11,
+      k: 12, o: 13, l: 14, p: 15, ";": 16, "'": 17, "]": 18, "\\": 19, z: 20, x: 21, c: 22, v: 23, b: 24
+    };
+    const OFFSET_KEY = Object.fromEntries(Object.entries(KEY_OFFSET).map(([key, offset]) => [offset, key]));
+    const BEAT = 340;
+    const SONGS = [
+      {
+        name: "两只老虎",
+        notes: [
+          [60, 1], [62, 1], [64, 1], [60, 1],
+          [60, 1], [62, 1], [64, 1], [60, 1],
+          [64, 1], [65, 1], [67, 2],
+          [64, 1], [65, 1], [67, 2],
+          [67, 0.5], [69, 0.5], [67, 0.5], [65, 0.5], [64, 1], [60, 1],
+          [67, 0.5], [69, 0.5], [67, 0.5], [65, 0.5], [64, 1], [60, 1],
+          [60, 1], [55, 1], [60, 2],
+          [60, 1], [55, 1], [60, 2]
+        ]
+      },
+      {
+        name: "小星星",
+        notes: [
+          [60, 1], [60, 1], [67, 1], [67, 1], [69, 1], [69, 1], [67, 2],
+          [65, 1], [65, 1], [64, 1], [64, 1], [62, 1], [62, 1], [60, 2],
+          [67, 1], [67, 1], [65, 1], [65, 1], [64, 1], [64, 1], [62, 2],
+          [67, 1], [67, 1], [65, 1], [65, 1], [64, 1], [64, 1], [62, 2],
+          [60, 1], [60, 1], [67, 1], [67, 1], [69, 1], [69, 1], [67, 2],
+          [65, 1], [65, 1], [64, 1], [64, 1], [62, 1], [62, 1], [60, 2]
+        ]
+      },
+      {
+        name: "致爱丽丝",
+        notes: [
+          [76, 0.5], [75, 0.5], [76, 0.5], [75, 0.5], [76, 0.5], [71, 0.5], [74, 0.5], [72, 0.5], [69, 1],
+          [60, 0.5], [64, 0.5], [69, 0.5], [71, 1],
+          [64, 0.5], [68, 0.5], [71, 0.5], [72, 1],
+          [64, 0.5],
+          [76, 0.5], [75, 0.5], [76, 0.5], [75, 0.5], [76, 0.5], [71, 0.5], [74, 0.5], [72, 0.5], [69, 1],
+          [60, 0.5], [64, 0.5], [69, 0.5], [71, 1],
+          [64, 0.5], [72, 0.5], [71, 0.5], [69, 2]
+        ]
+      },
+      {
+        name: "卡农",
+        notes: [
+          [78, 1], [76, 1], [74, 1], [73, 1],
+          [71, 1], [69, 1], [71, 1], [73, 1],
+          [74, 1], [73, 1], [71, 1], [69, 1],
+          [67, 1], [66, 1], [67, 1], [64, 2],
+          [66, 1], [69, 1], [73, 1], [74, 1],
+          [78, 1], [76, 1], [78, 1], [81, 1],
+          [83, 1], [81, 1], [78, 1], [76, 1],
+          [74, 3]
+        ]
+      },
+      {
+        name: "命运",
+        notes: [
+          [67, 0.4], [67, 0.4], [67, 0.4], [63, 1.8],
+          [65, 0.4], [65, 0.4], [65, 0.4], [62, 2],
+          [67, 0.4], [67, 0.4], [67, 0.4], [63, 1.8],
+          [65, 0.4], [65, 0.4], [65, 0.4], [62, 2.4]
+        ]
+      },
+      {
+        name: "生日快乐",
+        notes: [
+          [60, 0.75], [60, 0.25], [62, 1], [60, 1], [65, 1], [64, 2],
+          [60, 0.75], [60, 0.25], [62, 1], [60, 1], [67, 1], [65, 2],
+          [60, 0.75], [60, 0.25], [72, 1], [69, 1], [65, 1], [64, 1], [62, 2],
+          [70, 0.75], [70, 0.25], [69, 1], [65, 1], [67, 1], [65, 2]
+        ]
+      },
+      {
+        name: "爱的罗曼史",
+        notes: [
+          [71, 1.5], [72, 0.5], [74, 1], [76, 1.5], [77, 0.5], [76, 1],
+          [74, 1.5], [72, 0.5], [71, 2],
+          [72, 1], [74, 1], [76, 1], [77, 1], [79, 1.5], [77, 0.5],
+          [76, 1], [74, 1], [72, 2],
+          [71, 1.5], [72, 0.5], [74, 1], [76, 1.5], [77, 0.5], [76, 1],
+          [74, 1], [72, 1], [71, 2]
+        ]
+      }
+    ];
+
+    const noteEl = document.getElementById("note");
+    const songNameEl = document.getElementById("songName");
+    const octDown = document.getElementById("octDown");
+    const octUp = document.getElementById("octUp");
+    const keys = [];
+    const byMidi = new Map();
+    const pointer = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    let heldMidi = null;
+    let songToken = 0;
+    let songPlaying = false;
+    const songHeld = new Set();
+    let lastSong = -1;
+    let noteTimer = 0;
+    let octaveBase = 60;
+    const CAM_Y = 2.55;
+    const CAM_Z = 5.45;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x09070f);
+    scene.fog = new THREE.Fog(0x09070f, 10, 24);
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 40);
+    camera.position.set(0, CAM_Y, CAM_Z);
+
+    scene.add(new THREE.HemisphereLight(0xc9c4de, 0x1a120e, 0.7));
+    const keyLight = new THREE.DirectionalLight(0xfff1df, 1.35);
+    keyLight.position.set(1.5, 6, 3);
+    scene.add(keyLight);
+    const warm = new THREE.PointLight(0xffc98a, 8, 16, 2);
+    warm.position.set(0, 2.2, 0.4);
+    scene.add(warm);
+
+    const piano = new THREE.Group();
+    scene.add(piano);
+
+    const blackMat = new THREE.MeshStandardMaterial({
+      color: 0x100e12, roughness: 0.28, metalness: 0.62
+    });
+
+    function poolTexture() {
+      const c = document.createElement("canvas");
+      c.width = c.height = 512;
+      const g = c.getContext("2d");
+      const grd = g.createRadialGradient(256, 256, 20, 256, 256, 250);
+      grd.addColorStop(0, "rgba(70, 48, 36, 0.95)");
+      grd.addColorStop(0.45, "rgba(18, 12, 16, 0.7)");
+      grd.addColorStop(1, "rgba(7, 6, 12, 0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 512, 512);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(16, 16),
+      new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.29;
+    floor.raycast = () => {};
+    scene.add(floor);
+
+    function letterTexture(letter) {
+      const c = document.createElement("canvas");
+      c.width = 128;
+      c.height = 128;
+      const g = c.getContext("2d");
+      g.clearRect(0, 0, 128, 128);
+      g.fillStyle = "rgba(92, 70, 58, 0.72)";
+      g.font = "64px PingFang SC, sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(letter, 64, 68);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function softTexture() {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, "rgba(255,244,220,1)");
+      grd.addColorStop(0.4, "rgba(255,210,150,0.45)");
+      grd.addColorStop(1, "rgba(255,210,150,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    const softMap = softTexture();
+
+    const whites = [];
+    for (let midi = MIDI_MIN; midi <= MIDI_MAX; midi += 1) {
+      if (![1, 3, 6, 8, 10].includes(midi % 12)) whites.push(midi);
+    }
+    const span = 0.145;
+    const board = (whites.length - 1) * span;
+    const bodyW = board + 0.46;
+    function addBody(geometry, y, z, rotX) {
+      const mesh = new THREE.Mesh(geometry, blackMat);
+      mesh.position.set(0, y, z);
+      if (rotX) mesh.rotation.x = rotX;
+      mesh.raycast = () => {};
+      piano.add(mesh);
+    }
+    addBody(new THREE.BoxGeometry(bodyW, 0.32, 1.85), -0.12, -0.08);
+    addBody(new THREE.BoxGeometry(bodyW, 0.5, 0.16), 0.18, -0.9);
+    addBody(new THREE.BoxGeometry(bodyW - 0.08, 0.04, 1.25), 0.62, -1.22, -0.95);
+    const gold = new THREE.Mesh(
+      new THREE.BoxGeometry(board + 0.08, 0.012, 0.012),
+      new THREE.MeshStandardMaterial({ color: 0xd7b072, roughness: 0.35, metalness: 0.7, emissive: 0x8a6230, emissiveIntensity: 0.4 })
+    );
+    gold.position.set(0, 0.42, -0.81);
+    gold.raycast = () => {};
+    piano.add(gold);
+
+    const letterCache = new Map();
+    function letterMap(letter) {
+      if (!letterCache.has(letter)) letterCache.set(letter, letterTexture(letter));
+      return letterCache.get(letter);
+    }
+    const labelByMidi = new Map();
+    const whiteX = new Map();
+    whites.forEach((midi, index) => {
+      const x = (index - (whites.length - 1) / 2) * span;
+      whiteX.set(midi, x);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xf7f2ea, roughness: 0.38, metalness: 0.04,
+        emissive: 0xffd7a8, emissiveIntensity: 0
+      });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.14, 1.28), mat);
+      mesh.position.set(x, 0.07, 0.02);
+      mesh.userData = { midi, homeY: 0.07, target: 0, amount: 0, black: false };
+      piano.add(mesh);
+      const label = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.09, 0.075),
+        new THREE.MeshBasicMaterial({ map: letterMap("A"), transparent: true, depthWrite: false })
+      );
+      label.position.set(x, 0.03, 0.67);
+      label.rotation.x = -0.42;
+      label.raycast = () => {};
+      label.visible = false;
+      piano.add(label);
+      labelByMidi.set(midi, label);
+      keys.push(mesh);
+      byMidi.set(midi, mesh);
+    });
+
+    for (let midi = MIDI_MIN; midi <= MIDI_MAX; midi += 1) {
+      if (![1, 3, 6, 8, 10].includes(midi % 12)) continue;
+      const x = (whiteX.get(midi - 1) + whiteX.get(midi + 1)) / 2;
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x16141a, roughness: 0.32, metalness: 0.48,
+        emissive: 0xffb15a, emissiveIntensity: 0
+      });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.1, 0.78), mat);
+      mesh.position.set(x, 0.2, -0.2);
+      mesh.userData = { midi, homeY: 0.2, target: 0, amount: 0, black: true };
+      piano.add(mesh);
+      keys.push(mesh);
+      byMidi.set(midi, mesh);
+    }
+
+    function refreshLabels() {
+      labelByMidi.forEach((label, midi) => {
+        const offset = midi - octaveBase;
+        const key = OFFSET_KEY[offset];
+        const isWhite = ![1, 3, 6, 8, 10].includes(midi % 12);
+        if (!key || !isWhite) {
+          label.visible = false;
+          return;
+        }
+        label.material.map = letterMap(key.toUpperCase());
+        label.material.needsUpdate = true;
+        label.visible = true;
+      });
+      octDown.disabled = octaveBase - 12 < MIDI_MIN;
+      octUp.disabled = octaveBase + 12 + 24 > MIDI_MAX;
+    }
+    function shiftOctave(step) {
+      const next = octaveBase + step * 12;
+      if (next < MIDI_MIN || next + 24 > MIDI_MAX) return;
+      octaveBase = next;
+      refreshLabels();
+    }
+    refreshLabels();
+
+    const motes = new THREE.Group();
+    scene.add(motes);
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(420 * 3);
+    for (let i = 0; i < 420; i += 1) {
+      dustPos[i * 3] = (Math.random() - 0.5) * 12;
+      dustPos[i * 3 + 1] = Math.random() * 3.2;
+      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 6;
+    }
+    dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    scene.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({
+      map: softMap, color: 0xffe2bf, size: 0.035, transparent: true,
+      opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+    })));
+
+    const sparks = [];
+    function burst(mesh) {
+      const origin = mesh.getWorldPosition(new THREE.Vector3());
+      origin.y += 0.2;
+      for (let i = 0; i < 7; i += 1) {
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: softMap,
+          color: mesh.userData.black ? 0xffc98a : 0xfff0d2,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        }));
+        sprite.position.copy(origin);
+        sprite.scale.setScalar(0.12 + Math.random() * 0.12);
+        sprite.userData = {
+          life: 1,
+          vel: new THREE.Vector3((Math.random() - 0.5) * 0.35, 0.55 + Math.random() * 0.7, (Math.random() - 0.5) * 0.35)
+        };
+        motes.add(sprite);
+        sparks.push(sprite);
+      }
+    }
+
+    let audioCtx = null;
+    let delayNode = null;
+    function ensureAudio() {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!audioCtx) {
+        audioCtx = new Ctx();
+        delayNode = audioCtx.createDelay();
+        delayNode.delayTime.value = 0.21;
+        const feedback = audioCtx.createGain();
+        feedback.gain.value = 0.28;
+        const wet = audioCtx.createGain();
+        wet.gain.value = 0.22;
+        delayNode.connect(feedback);
+        feedback.connect(delayNode);
+        delayNode.connect(wet);
+        wet.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    }
+
+    function freqOf(midi) {
+      return 440 * 2 ** ((midi - 69) / 12);
+    }
+
+    function sound(midi) {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const freq = freqOf(midi);
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(0.22, now + 0.015);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 1.7);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(2400, now);
+      filter.frequency.exponentialRampToValueAtTime(700, now + 0.45);
+      master.connect(filter);
+      filter.connect(ctx.destination);
+      filter.connect(delayNode);
+      [1, 2, 3, 4, 5.02].forEach((partial, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq * partial;
+        osc.detune.value = index % 2 ? 4 : -3;
+        gain.gain.value = [0.7, 0.38, 0.2, 0.1, 0.05][index];
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(now);
+        osc.stop(now + 1.85);
+      });
+    }
+
+    function showName(midi) {
+      noteEl.textContent = NAMES[midi % 12];
+      noteEl.classList.add("show");
+      noteTimer = 0.9;
+    }
+
+    function stopSong() {
+      songToken += 1;
+      songPlaying = false;
+      songNameEl.classList.remove("show");
+      Array.from(songHeld).forEach((midi) => release(midi));
+    }
+
+    function press(midi, fromSong) {
+      const mesh = byMidi.get(midi);
+      if (!mesh || mesh.userData.held) return;
+      mesh.userData.held = true;
+      mesh.userData.target = 1;
+      if (fromSong) songHeld.add(midi);
+      sound(midi);
+      burst(mesh);
+      showName(midi);
+    }
+
+    function release(midi) {
+      const mesh = byMidi.get(midi);
+      if (!mesh) return;
+      mesh.userData.held = false;
+      mesh.userData.target = 0;
+      songHeld.delete(midi);
+    }
+
+    function pick(event) {
+      pointer.x = (event.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(keys, false)[0];
+      return hit ? hit.object.userData.midi : null;
+    }
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      stopSong();
+      heldMidi = pick(event);
+      if (heldMidi != null) press(heldMidi);
+    });
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      if (event.buttons !== 1) return;
+      const midi = pick(event);
+      if (midi === heldMidi) return;
+      if (heldMidi != null) release(heldMidi);
+      heldMidi = midi;
+      if (heldMidi != null) press(heldMidi);
+    });
+    window.addEventListener("pointerup", () => {
+      if (heldMidi != null) release(heldMidi);
+      heldMidi = null;
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      const offset = KEY_OFFSET[event.key.toLowerCase()];
+      if (offset == null) return;
+      const midi = octaveBase + offset;
+      if (midi < MIDI_MIN || midi > MIDI_MAX) return;
+      event.preventDefault();
+      stopSong();
+      press(midi);
+    });
+    window.addEventListener("keyup", (event) => {
+      const offset = KEY_OFFSET[event.key.toLowerCase()];
+      if (offset == null) return;
+      release(octaveBase + offset);
+    });
+
+    octDown.addEventListener("click", () => shiftOctave(-1));
+    octUp.addEventListener("click", () => shiftOctave(1));
+
+    document.getElementById("song").addEventListener("click", () => {
+      if (songPlaying) {
+        stopSong();
+        return;
+      }
+      let index = Math.floor(Math.random() * SONGS.length);
+      if (index === lastSong) index = (index + 1) % SONGS.length;
+      lastSong = index;
+      const song = SONGS[index];
+      const token = ++songToken;
+      songPlaying = true;
+      songNameEl.textContent = song.name;
+      songNameEl.classList.add("show");
+      let at = 0;
+      song.notes.forEach(([midi, beats]) => {
+        const start = at;
+        const hold = Math.max(90, beats * BEAT * 0.78);
+        at += beats * BEAT;
+        window.setTimeout(() => {
+          if (token !== songToken) return;
+          press(midi, true);
+        }, start);
+        window.setTimeout(() => {
+          if (token !== songToken) return;
+          release(midi);
+        }, start + hold);
+      });
+      window.setTimeout(() => {
+        if (token !== songToken) return;
+        songPlaying = false;
+        songNameEl.classList.remove("show");
+      }, at + 500);
+    });
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.28, 0.55, 0.84));
+    composer.addPass(new OutputPass());
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.elapsedTime;
+      const px = pointer.x || 0;
+      const py = pointer.y || 0;
+      camera.position.x += (px * 0.35 - camera.position.x) * 0.04;
+      camera.position.y += (CAM_Y + py * 0.12 - camera.position.y) * 0.04;
+      camera.lookAt(0, 0.05, -0.2);
+      keys.forEach((mesh) => {
+        const data = mesh.userData;
+        data.amount += (data.target - data.amount) * 0.28;
+        mesh.position.y = data.homeY - data.amount * 0.045;
+        mesh.material.emissiveIntensity = data.amount * (data.black ? 0.85 : 0.55);
+      });
+      for (let i = sparks.length - 1; i >= 0; i -= 1) {
+        const spark = sparks[i];
+        spark.userData.life -= dt * 0.85;
+        spark.position.addScaledVector(spark.userData.vel, dt);
+        spark.userData.vel.y -= dt * 0.35;
+        spark.material.opacity = Math.max(0, spark.userData.life);
+        if (spark.userData.life <= 0) {
+          motes.remove(spark);
+          spark.material.dispose();
+          sparks.splice(i, 1);
+        }
+      }
+      if (noteTimer > 0) {
+        noteTimer -= dt;
+        if (noteTimer <= 0) noteEl.classList.remove("show");
+      }
+      warm.intensity = 5.4 + Math.sin(time * 0.8) * 0.35;
+      composer.render();
+      requestAnimationFrame(tick);
+    }
+    tick();
+    window.__pianoReady = true;
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

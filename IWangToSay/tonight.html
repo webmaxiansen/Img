@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>今夜</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #100818; }
+    body { font-family: "Songti SC", "STSong", "PingFang SC", "Hiragino Sans GB", serif; color: #fff6ee; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .hud { position: fixed; inset: 0; pointer-events: none; }
+    .brand {
+      position: absolute; top: 22px; left: 0; right: 0; text-align: center;
+      letter-spacing: 0.55em; font-size: 14px; color: rgba(255, 244, 230, 0.75);
+    }
+    .hint {
+      position: absolute; left: 0; right: 0; bottom: 28px; text-align: center;
+      letter-spacing: 0.2em; font-size: 14px; color: rgba(255, 244, 230, 0.84);
+    }
+    .line {
+      position: absolute; left: 0; right: 0; top: 18%; text-align: center;
+      opacity: 0; transform: translateY(14px); transition: 0.9s ease;
+    }
+    .line.show { opacity: 1; transform: none; }
+    .line em { display: block; font-style: normal; letter-spacing: 0.42em; font-size: 15px; color: rgba(255,236,220,.78); }
+    .line strong {
+      display: block; margin-top: 10px; font-weight: 500;
+      font-size: clamp(36px, 5.6vw, 64px); letter-spacing: 0.14em;
+      text-shadow: 0 12px 40px rgba(40, 8, 24, 0.45);
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="hud">
+    <p class="brand">今夜</p>
+    <div class="line" id="line"><em>这些光</em><strong>都给你</strong></div>
+    <p class="hint" id="hint">拖动看星河，点一下放一盏灯</p>
+  </div>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+    const WORDS = ["想你", "月亮醒着", "慢慢来", "我在这里", "别怕黑", "这一晚很好", "光会找到你", "把心放轻", "看我", "就这样"];
+    const hint = document.getElementById("hint");
+    const line = document.getElementById("line");
+    const lanterns = [];
+    const bursts = [];
+    let released = 0;
+    let pointerDown = null;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+    camera.position.set(0, 1.6, 9);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 2.2, 0);
+    controls.minDistance = 4;
+    controls.maxDistance = 16;
+    controls.maxPolarAngle = Math.PI * 0.72;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.28;
+
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(80, 48, 24),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        vertexShader: "varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+        fragmentShader: "varying vec3 vPos; void main(){ float h = normalize(vPos).y * 0.5 + 0.5; vec3 top = vec3(0.04,0.02,0.09); vec3 mid = vec3(0.28,0.10,0.28); vec3 low = vec3(0.72,0.32,0.38); vec3 col = mix(low, mid, smoothstep(0.05, 0.42, h)); col = mix(col, top, smoothstep(0.35, 0.85, h)); gl_FragColor = vec4(col, 1.0); }"
+      })
+    );
+    scene.add(sky);
+
+    scene.add(new THREE.AmbientLight(0x6a4e88, 0.35));
+    const moonLight = new THREE.DirectionalLight(0xfff0d2, 1.3);
+    moonLight.position.set(-8, 12, 6);
+    scene.add(moonLight);
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 40, 40),
+      new THREE.MeshBasicMaterial({ color: 0xfff3d4 })
+    );
+    moon.position.set(-7.5, 6.2, -8);
+    scene.add(moon);
+
+    function glowTexture() {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, "rgba(255,255,255,1)");
+      grd.addColorStop(0.4, "rgba(255,255,255,0.55)");
+      grd.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+    const glow = glowTexture();
+
+    function makeStars(count, radius, flatten, size, pink) {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const col = new Float32Array(count * 3);
+      for (let i = 0; i < count; i += 1) {
+        const r = radius * (0.35 + Math.random() * 0.65);
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        pos[i * 3 + 1] = r * Math.cos(phi) * flatten;
+        pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+        const warm = Math.random();
+        col[i * 3] = 1;
+        col[i * 3 + 1] = pink ? 0.62 + warm * 0.2 : 0.82 + warm * 0.18;
+        col[i * 3 + 2] = pink ? 0.78 : 0.9;
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      return new THREE.Points(geo, new THREE.PointsMaterial({
+        size, map: glow, vertexColors: true, transparent: true,
+        depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+      }));
+    }
+    const galaxy = makeStars(4500, 46, 0.42, 0.22, false);
+    galaxy.rotation.z = 0.7;
+    scene.add(galaxy);
+    const milky = makeStars(1800, 28, 0.18, 0.16, true);
+    milky.rotation.z = 0.9;
+    milky.rotation.x = 0.4;
+    scene.add(milky);
+
+    const lanternGeo = new THREE.LatheGeometry([
+      new THREE.Vector2(0.02, -0.42),
+      new THREE.Vector2(0.16, -0.28),
+      new THREE.Vector2(0.24, 0),
+      new THREE.Vector2(0.16, 0.28),
+      new THREE.Vector2(0.05, 0.4)
+    ], 20);
+    const lanternMat = new THREE.MeshStandardMaterial({
+      color: 0xffb15e, emissive: 0xff6a1a, emissiveIntensity: 1.6, roughness: 0.35
+    });
+    const flameMat = new THREE.MeshBasicMaterial({ color: 0xfff6d0 });
+
+    function labelSprite(text) {
+      const c = document.createElement("canvas");
+      c.width = 512;
+      c.height = 128;
+      const g = c.getContext("2d");
+      g.clearRect(0, 0, 512, 128);
+      g.fillStyle = "rgba(255, 246, 236, 0.95)";
+      g.font = "56px Songti SC, STSong, serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(text, 256, 64);
+      const mat = new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(1.8, 0.45, 1);
+      return sprite;
+    }
+
+    function releaseLantern(word, x, z, y) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(lanternGeo, lanternMat);
+      const flame = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), flameMat);
+      flame.position.y = 0.46;
+      const light = new THREE.PointLight(0xff9944, 6, 9, 2);
+      light.position.y = 0.2;
+      const tag = labelSprite(word);
+      tag.position.y = 0.85;
+      group.add(body, flame, light, tag);
+      group.position.set(x, y, z);
+      group.userData = {
+        speed: 0.28 + Math.random() * 0.22,
+        phase: Math.random() * Math.PI * 2,
+        drift: (Math.random() - 0.5) * 0.18
+      };
+      scene.add(group);
+      lanterns.push(group);
+      const origin = group.position.clone();
+      origin.y += 0.3;
+      burstAt(origin);
+    }
+
+    const sparkMat = new THREE.PointsMaterial({
+      map: glow, color: 0xffd2a2, size: 0.18, transparent: true,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+    });
+
+    function burstAt(position) {
+      const count = 24;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = [];
+      for (let i = 0; i < count; i += 1) {
+        pos[i * 3] = position.x;
+        pos[i * 3 + 1] = position.y;
+        pos[i * 3 + 2] = position.z;
+        vel.push(new THREE.Vector3((Math.random() - 0.5) * 1.4, Math.random() * 1.2, (Math.random() - 0.5) * 1.4));
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const points = new THREE.Points(geo, sparkMat.clone());
+      scene.add(points);
+      bursts.push({ points, vel, life: 1.1 });
+    }
+
+    const trailCount = 36;
+    const trailGeo = new THREE.BufferGeometry();
+    const trailPos = new Float32Array(trailCount * 3);
+    trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPos, 3));
+    const trail = new THREE.Points(trailGeo, new THREE.PointsMaterial({
+      map: glow, color: 0xffd0e0, size: 0.14, transparent: true,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+    }));
+    scene.add(trail);
+    const trailSlots = Array.from({ length: trailCount }, () => new THREE.Vector3(0, -10, 0));
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const aim = new THREE.Vector3();
+
+    function pointerToWorld(event) {
+      pointer.x = (event.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      aim.copy(camera.position).add(raycaster.ray.direction.clone().multiplyScalar(6));
+      return aim;
+    }
+
+    let audioCtx = null;
+    function chime(notes) {
+      try {
+        if (!audioCtx) audioCtx = new AudioContext();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        notes.forEach((freq, index) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          const start = audioCtx.currentTime + index * 0.12;
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.05, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.55);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(start);
+          osc.stop(start + 0.56);
+        });
+      } catch (err) { void err; }
+    }
+
+    function launch(event) {
+      const spot = pointerToWorld(event);
+      releaseLantern(WORDS[released % WORDS.length], spot.x, spot.z, Math.max(-0.2, spot.y - 1.2));
+      released += 1;
+      chime([392, 494, 587, 784]);
+      if (released >= 5) {
+        line.classList.add("show");
+        hint.textContent = "灯还在往上走";
+      } else {
+        hint.textContent = "再放一盏，光会聚过来";
+      }
+    }
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      pointerDown = { x: event.clientX, y: event.clientY };
+      controls.autoRotate = false;
+    });
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      if (!pointerDown) return;
+      const moved = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
+      pointerDown = null;
+      if (moved < 8) launch(event);
+    });
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      const spot = pointerToWorld(event);
+      trailSlots.pop();
+      trailSlots.unshift(spot.clone());
+      const attr = trail.geometry.attributes.position;
+      trailSlots.forEach((p, i) => attr.setXYZ(i, p.x, p.y, p.z));
+      attr.needsUpdate = true;
+    });
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.6, 0.2);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    releaseLantern("月亮醒着", -1.4, -1, 1.2);
+    releaseLantern("我在这里", 1.6, 0.4, 0.4);
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.elapsedTime;
+      galaxy.rotation.y += dt * 0.012;
+      milky.rotation.y -= dt * 0.02;
+      moon.position.x = -7.5 + Math.sin(time * 0.15) * 0.4;
+      lanterns.forEach((lantern) => {
+        const data = lantern.userData;
+        lantern.position.y += data.speed * dt;
+        lantern.position.x += Math.sin(time * 0.8 + data.phase) * data.drift * dt;
+        lantern.rotation.z = Math.sin(time * 1.3 + data.phase) * 0.12;
+        if (lantern.position.y > 9) lantern.position.y = -0.4;
+      });
+      for (let i = bursts.length - 1; i >= 0; i -= 1) {
+        const burst = bursts[i];
+        burst.life -= dt;
+        const attr = burst.points.geometry.attributes.position;
+        burst.vel.forEach((vel, index) => {
+          vel.y -= dt * 0.4;
+          attr.setXYZ(index, attr.getX(index) + vel.x * dt, attr.getY(index) + vel.y * dt, attr.getZ(index) + vel.z * dt);
+        });
+        attr.needsUpdate = true;
+        burst.points.material.opacity = Math.max(burst.life, 0);
+        if (burst.life <= 0) {
+          scene.remove(burst.points);
+          burst.points.geometry.dispose();
+          bursts.splice(i, 1);
+        }
+      }
+      controls.update();
+      composer.render();
+      requestAnimationFrame(tick);
+    }
+    tick();
+    window.__nightReady = true;
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setSize(innerWidth, innerHeight);
+      bloom.resolution.set(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

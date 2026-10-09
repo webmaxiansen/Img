@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>打烊后的花店</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #140c24; }
+    body { font-family: "Songti SC", "STSong", "PingFang SC", "Hiragino Sans GB", serif; color: #fff8f3; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .hud { position: fixed; inset: 0; pointer-events: none; }
+    .brand {
+      position: absolute; top: 22px; left: 0; right: 0; text-align: center;
+      letter-spacing: 0.46em; font-size: 14px; color: rgba(255, 244, 236, 0.78);
+    }
+    .hint {
+      position: absolute; left: 0; right: 0; bottom: 28px; text-align: center;
+      letter-spacing: 0.22em; font-size: 14px; color: rgba(255, 244, 236, 0.82);
+    }
+    .line {
+      position: absolute; top: 16%; left: 0; right: 0; text-align: center;
+      opacity: 0; transform: translateY(12px); transition: 0.8s ease;
+    }
+    .line.show { opacity: 1; transform: none; }
+    .line em { display: block; font-style: normal; letter-spacing: 0.48em; font-size: 15px; color: rgba(255,244,236,.78); }
+    .line strong {
+      display: block; margin-top: 8px; font-weight: 500;
+      font-size: clamp(40px, 6vw, 68px); letter-spacing: 0.16em;
+      text-shadow: 0 10px 40px rgba(40, 10, 30, 0.45);
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="hud">
+    <p class="brand">慢半拍花店</p>
+    <div class="line" id="line"><em>今晚的花</em><strong>都为你开</strong></div>
+    <p class="hint" id="hint">拖动环顾，点开一朵花</p>
+  </div>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+    const hint = document.getElementById("hint");
+    const line = document.getElementById("line");
+    const COLORS = [0xf27d9a, 0xffd0dc, 0xf3b6e4, 0xffe0aa, 0xd7c4ff];
+    const flowers = [];
+    const bursts = [];
+    let opened = 0;
+    let pointerDown = null;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setClearColor(0x140c24);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x1a1030, 0.045);
+    scene.background = new THREE.Color(0x140c24);
+
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 80);
+    camera.position.set(5.2, 3.1, 7.4);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, 0.9, 0);
+    controls.minDistance = 3.5;
+    controls.maxDistance = 13;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.35;
+
+    scene.add(new THREE.AmbientLight(0xc9b6e8, 0.45));
+    const moon = new THREE.DirectionalLight(0xfff1d2, 2.2);
+    moon.position.set(8, 12, 4);
+    moon.castShadow = true;
+    moon.shadow.mapSize.set(1024, 1024);
+    scene.add(moon);
+    const moonBall = new THREE.Mesh(
+      new THREE.SphereGeometry(0.7, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff4d2 })
+    );
+    moonBall.position.set(9, 8.5, -6);
+    scene.add(moonBall);
+
+    const pointerLight = new THREE.PointLight(0xffb7c8, 8, 7, 2);
+    pointerLight.position.set(0, 1.2, 0);
+    scene.add(pointerLight);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(16, 64),
+      new THREE.MeshStandardMaterial({ color: 0x163628, roughness: 1, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const grassGeo = new THREE.ConeGeometry(0.035, 0.28, 4);
+    const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f8a52, roughness: 1 });
+    const grass = new THREE.InstancedMesh(grassGeo, grassMat, 500);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 500; i += 1) {
+      const radius = Math.random() * 7.2;
+      const angle = Math.random() * Math.PI * 2;
+      dummy.position.set(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius);
+      dummy.rotation.y = Math.random() * Math.PI;
+      dummy.scale.setScalar(0.6 + Math.random() * 1.1);
+      dummy.updateMatrix();
+      grass.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(grass);
+
+    function petalGeometry() {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.bezierCurveTo(0.22, 0.15, 0.28, 0.55, 0, 1);
+      shape.bezierCurveTo(-0.28, 0.55, -0.22, 0.15, 0, 0);
+      return new THREE.ShapeGeometry(shape);
+    }
+    const petalGeo = petalGeometry();
+    const petalMats = COLORS.map((color) => new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.42,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+      emissive: color,
+      emissiveIntensity: 0.18
+    }));
+    const stemMat = new THREE.MeshStandardMaterial({ color: 0x3e9a55, roughness: 0.8 });
+    const centerMat = new THREE.MeshStandardMaterial({
+      color: 0xffe7a2,
+      emissive: 0xffc14d,
+      emissiveIntensity: 0.9,
+      roughness: 0.35
+    });
+
+    function createFlower(index, growing) {
+      const group = new THREE.Group();
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.15, 8), stemMat);
+      stem.position.y = 0.58;
+      stem.castShadow = true;
+      group.add(stem);
+      const petals = new THREE.Group();
+      petals.position.y = 1.16;
+      const mat = petalMats[index % petalMats.length];
+      for (let i = 0; i < 7; i += 1) {
+        const pivot = new THREE.Group();
+        pivot.rotation.y = (i / 7) * Math.PI * 2;
+        const petal = new THREE.Mesh(petalGeo, mat);
+        petal.position.y = 0.02;
+        petal.scale.setScalar(0.42);
+        petal.castShadow = true;
+        pivot.add(petal);
+        petals.add(pivot);
+      }
+      group.add(petals);
+      const center = new THREE.Mesh(new THREE.SphereGeometry(0.09, 18, 18), centerMat);
+      center.position.y = 1.2;
+      group.add(center);
+      group.userData = {
+        petals,
+        open: growing ? 0 : (index % 4 === 0 ? 1 : 0.12),
+        target: growing ? 1 : (index % 4 === 0 ? 1 : 0.12),
+        grow: growing ? 0.05 : 1,
+        phase: Math.random() * Math.PI * 2,
+        opened: false
+      };
+      return group;
+    }
+
+    function placeInitial() {
+      for (let i = 0; i < 26; i += 1) {
+        const radius = 0.35 + i * 0.18;
+        const angle = i * 2.399963;
+        const flower = createFlower(i, false);
+        flower.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+        flower.scale.setScalar(0.72 + (i % 5) * 0.08);
+        scene.add(flower);
+        flowers.push(flower);
+      }
+    }
+    placeInitial();
+
+    const sprite = new THREE.CanvasTexture(makeGlow());
+    function makeGlow() {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, "rgba(255,255,255,1)");
+      grd.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+      return c;
+    }
+    const sparkMat = new THREE.PointsMaterial({
+      map: sprite, color: 0xfff0c8, size: 0.16, transparent: true,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+    });
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPos = new Float32Array(70 * 3);
+    for (let i = 0; i < 70; i += 1) {
+      sparkPos[i * 3] = (Math.random() - 0.5) * 12;
+      sparkPos[i * 3 + 1] = 0.4 + Math.random() * 3.2;
+      sparkPos[i * 3 + 2] = (Math.random() - 0.5) * 12;
+    }
+    sparkGeo.setAttribute("position", new THREE.BufferAttribute(sparkPos, 3));
+    const sparks = new THREE.Points(sparkGeo, sparkMat);
+    scene.add(sparks);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const lightTarget = new THREE.Vector3(0, 0.6, 0);
+
+    function setPointer(event) {
+      pointer.x = (event.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+    }
+
+    function flowerFromHit(hit) {
+      let obj = hit.object;
+      while (obj.parent && obj.parent !== scene) obj = obj.parent;
+      return flowers.includes(obj) ? obj : null;
+    }
+
+    function burstAt(position, color) {
+      const count = 28;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = [];
+      for (let i = 0; i < count; i += 1) {
+        pos[i * 3] = position.x;
+        pos[i * 3 + 1] = position.y;
+        pos[i * 3 + 2] = position.z;
+        vel.push(new THREE.Vector3(
+          (Math.random() - 0.5) * 1.6,
+          0.6 + Math.random() * 1.8,
+          (Math.random() - 0.5) * 1.6
+        ));
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const mat = sparkMat.clone();
+      mat.color = new THREE.Color(color);
+      mat.size = 0.22;
+      const points = new THREE.Points(geo, mat);
+      scene.add(points);
+      bursts.push({ points, vel, life: 1.15 });
+    }
+
+    function openFlower(flower) {
+      flower.userData.target = 1;
+      if (!flower.userData.opened) {
+        flower.userData.opened = true;
+        opened += 1;
+        const pos = new THREE.Vector3();
+        flower.getWorldPosition(pos);
+        pos.y += 1.2 * flower.scale.y;
+        burstAt(pos, COLORS[opened % COLORS.length]);
+        if (opened >= 5) {
+          line.classList.add("show");
+          hint.textContent = "它们都亮起来了";
+        } else {
+          hint.textContent = "又开了一朵，还可以点空地种新的";
+        }
+      }
+    }
+
+    function plantAt(point) {
+      const flower = createFlower(flowers.length, true);
+      flower.position.copy(point);
+      flower.position.y = 0;
+      flower.scale.setScalar(0.85);
+      scene.add(flower);
+      flowers.push(flower);
+      openFlower(flower);
+    }
+
+    function onPick(event) {
+      setPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(flowers, true);
+      if (hits.length) {
+        const flower = flowerFromHit(hits[0]);
+        if (flower) {
+          openFlower(flower);
+          return;
+        }
+      }
+      const groundHit = raycaster.intersectObject(ground)[0];
+      if (groundHit && groundHit.point.length() < 7.5) plantAt(groundHit.point);
+    }
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      pointerDown = { x: event.clientX, y: event.clientY };
+      controls.autoRotate = false;
+    });
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      if (!pointerDown) return;
+      const moved = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
+      pointerDown = null;
+      if (moved < 7) onPick(event);
+    });
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      setPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(ground)[0];
+      if (hit) lightTarget.copy(hit.point).setY(0.7);
+    });
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.55, 0.72);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.elapsedTime;
+      flowers.forEach((flower) => {
+        const data = flower.userData;
+        data.open += (data.target - data.open) * Math.min(1, dt * 3.2);
+        data.grow = Math.min(1, data.grow + dt * 0.9);
+        const sway = Math.sin(time * 1.25 + data.phase) * 0.07;
+        flower.rotation.z = sway;
+        flower.rotation.x = Math.cos(time * 0.9 + data.phase) * 0.045;
+        const growScale = flower.scale.x;
+        flower.scale.y = growScale * (0.15 + data.grow * 0.85);
+        data.petals.children.forEach((pivot) => {
+          const petal = pivot.children[0];
+          petal.rotation.x = 0.25 + data.open * 0.95;
+          const size = 0.22 + data.open * 0.28;
+          petal.scale.setScalar(size);
+        });
+      });
+      pointerLight.position.lerp(lightTarget, 0.08);
+      const positions = sparks.geometry.attributes.position;
+      for (let i = 0; i < positions.count; i += 1) {
+        let y = positions.getY(i) + Math.sin(time * 0.7 + i) * 0.004;
+        if (y > 3.6) y = 0.3;
+        positions.setY(i, y);
+        positions.setX(i, positions.getX(i) + Math.sin(time + i) * 0.002);
+      }
+      positions.needsUpdate = true;
+      for (let i = bursts.length - 1; i >= 0; i -= 1) {
+        const burst = bursts[i];
+        burst.life -= dt;
+        const attr = burst.points.geometry.attributes.position;
+        for (let p = 0; p < burst.vel.length; p += 1) {
+          burst.vel[p].y -= dt * 1.4;
+          attr.setXYZ(
+            p,
+            attr.getX(p) + burst.vel[p].x * dt,
+            attr.getY(p) + burst.vel[p].y * dt,
+            attr.getZ(p) + burst.vel[p].z * dt
+          );
+        }
+        attr.needsUpdate = true;
+        burst.points.material.opacity = Math.max(0, burst.life);
+        if (burst.life <= 0) {
+          scene.remove(burst.points);
+          burst.points.geometry.dispose();
+          bursts.splice(i, 1);
+        }
+      }
+      controls.update();
+      composer.render();
+      requestAnimationFrame(tick);
+    }
+    tick();
+    window.__gardenReady = true;
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setSize(innerWidth, innerHeight);
+      bloom.resolution.set(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
