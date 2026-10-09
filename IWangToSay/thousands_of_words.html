@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>一份神秘礼物致——小胡</title>
+  <style>
+    :root {
+      --blue: #2f7cf6;
+      --ink: #1c1c1e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: #e4e4e9;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      position: relative;
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    #closeBtn {
+      position: absolute;
+      top: calc(14px + env(safe-area-inset-top));
+      left: 14px;
+      z-index: 30;
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.94);
+      color: #1c1c1e;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    #closeBtn:active { background: #f2f2f4; }
+
+    .stage-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      background: #e3e3e8;
+    }
+
+    .app.opened .stage-wrap {
+      background:
+        radial-gradient(ellipse at 50% 42%, #fff 0%, #f4eef2 62%, #efe6ec 100%);
+    }
+
+    #stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .card {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 4px;
+      padding: 8px 12px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      border-radius: 12px;
+      text-align: left;
+      cursor: pointer;
+      opacity: 0;
+      box-shadow: 0 4px 12px rgba(70, 40, 60, 0.1);
+      -webkit-tap-highlight-color: transparent;
+      will-change: transform, opacity;
+    }
+
+    .card.copied {
+      box-shadow: 0 0 0 2px #ff8fab, 0 10px 24px rgba(255, 105, 150, 0.22);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+      padding: 0 7px 0 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      font-size: 11px;
+      line-height: 1;
+      color: #e25b7a;
+      font-weight: 600;
+    }
+
+    .heart {
+      font-size: 12px;
+      color: #ff4d6d;
+      line-height: 1;
+    }
+
+    .phrase {
+      font-size: 14px;
+      font-weight: 600;
+      color: #242428;
+      letter-spacing: 0;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+
+    .tone-0 { background: #ffffff; border-color: #f3e4ea; }
+    .tone-1 { background: #ffe3ee; border-color: #ffd0e0; }
+    .tone-2 { background: #f1e4ff; border-color: #e4d2f8; }
+    .tone-3 { background: #fff0f5; border-color: #ffd9e6; }
+    .tone-4 { background: #efe6ff; border-color: #e0d2f6; }
+    .tone-5 { background: #fff6f8; border-color: #ffe0ea; }
+    .tone-6 { background: #fff4cc; border-color: #ffe7a3; }
+    .tone-7 { background: #e5f8ee; border-color: #c9eedb; }
+    .tone-8 { background: #e7f3ff; border-color: #d0e6ff; }
+
+    .tone-0 .tag,
+    .tone-5 .tag { background: #fff0f4; }
+    .tone-2 .tag,
+    .tone-4 .tag { color: #b04ec8; }
+    .tone-2 .heart,
+    .tone-4 .heart { color: #c026d3; }
+
+    .hint {
+      position: absolute;
+      left: 16px;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      z-index: 12;
+      font-size: 12px;
+      color: #9a9aa2;
+      pointer-events: none;
+    }
+
+    .mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(70, 70, 78, 0.18);
+      display: grid;
+      place-items: center;
+      z-index: 20;
+    }
+
+    .mask.leave { animation: fadeOut 0.28s ease forwards; }
+
+    .dialog {
+      width: min(318px, 86%);
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px 16px 12px;
+      box-shadow: 0 16px 50px rgba(0, 0, 0, 0.16);
+      animation: dlgIn 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .mask.leave .dialog { animation: dlgOut 0.26s ease forwards; }
+
+    .dlg-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .dlg-title .gift { font-size: 18px; line-height: 1; }
+
+    .dlg-text {
+      margin: 22px 2px 16px;
+      font-size: 15px;
+      line-height: 1.55;
+      color: #3a3a3c;
+    }
+
+    .dlg-actions { display: flex; justify-content: flex-end; }
+
+    #openBtn {
+      appearance: none;
+      border: 0;
+      background: var(--blue);
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      min-width: 64px;
+    }
+
+    #openBtn:active { filter: brightness(0.95); }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: calc(78px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(8px);
+      background: rgba(28, 28, 30, 0.9);
+      color: #fff;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 40;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      white-space: nowrap;
+    }
+
+    .toast.on {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes dlgIn {
+      from { opacity: 0; transform: scale(0.92) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes dlgOut {
+      to { opacity: 0; transform: scale(0.94) translateY(6px); }
+    }
+
+    @keyframes fadeOut { to { opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dialog, .mask.leave, .mask.leave .dialog { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <button class="icon-btn" id="closeBtn" type="button" aria-label="重新打开">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+
+    <div class="stage-wrap">
+      <main id="stage"></main>
+      <p class="hint" id="hint" hidden>点一下短语，就能复制</p>
+
+      <div class="mask" id="mask">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+          <div class="dlg-title" id="dlgTitle">
+            <span class="gift" aria-hidden="true">🎁</span>
+            <span>神秘的礼物</span>
+          </div>
+          <p class="dlg-text">您有一份神秘礼物，确定要打开吗？</p>
+          <div class="dlg-actions">
+            <button id="openBtn" type="button">确定</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+
+  <script>
+    // 想说的话写在这里，保存后刷新页面即可。
+    const PHRASES = [
+      "金榜题名",
+      "保持好心情",
+      "过得开心嘛",
+      "要相信自己哦",
+      "期待下一次见面",
+      "记得好好护肤",
+      "早点休息",
+      "今天过得开心嘛",
+      "照顾好自己哦",
+      "我想你了",
+      "保持微笑呀",
+      "记得好好吃饭",
+      "别太累了",
+      "你超棒的",
+      "慢慢来就好",
+      "今天也要开心呀",
+      "喝水了吗",
+      "早点睡觉哦",
+      "我想见你",
+      "你值得被温柔对待",
+      "明天会更好",
+      "一切都会顺利的",
+      "抱抱你",
+      "保持热爱呀",
+      "别忘了笑一笑",
+      "辛苦啦",
+      "我一直都在",
+      "今天也要闪闪发光",
+      "今天也要顺利呀",
+      "记得想我",
+      "你笑起来真好看",
+      "别熬夜啦",
+      "吃点好的",
+      "出门注意安全",
+      "累了就休息",
+      "你已经很棒了",
+      "不着急，慢慢来",
+      "我相信你",
+      "今天的你也很可爱",
+      "记得多喝热水",
+      "给自己一个拥抱",
+      "别给自己太大压力",
+      "你值得被喜欢",
+      "保持好奇",
+      "去做你喜欢的事",
+      "阳光会照到你",
+      "坏心情到此为止",
+      "把烦恼丢掉",
+      "你不是一个人",
+      "我就在这里",
+      "想你的时候会笑",
+      "下次见面要开心",
+      "记得拉伸一下",
+      "眼睛休息一下",
+      "今天的风很温柔",
+      "把好运分你一半",
+      "旗开得胜",
+      "万事顺意",
+      "未来可期",
+      "保持善良",
+      "你很重要",
+      "允许自己慢一点",
+      "今天也要爱自己",
+      "睡个好觉",
+      "梦里见",
+      "早安呀",
+      "晚安呀",
+      "别委屈自己",
+      "有我在呢",
+      "你超厉害的",
+      "小小的进步也算数",
+      "今天适合开心",
+      "把肩膀放松",
+      "深呼吸一下",
+      "想把好心情给你",
+      "你很亮",
+      "保持节奏",
+      "先照顾好自己",
+      "见到你会开心",
+      "记得带伞",
+      "天冷了添件衣服",
+      "饿了就去吃",
+      "甜一点也没关系",
+      "今天也闪闪的",
+      "你走过的路都算数",
+      "被爱着哦",
+      "安心睡觉",
+      "把今天过好",
+      "明天又是新的",
+      "我会一直记得你",
+      "你值得所有温柔",
+      "别怕，慢慢来",
+      "抬头看看天",
+      "风会把烦恼吹走",
+      "今天的努力我看见了",
+      "休息不是偷懒",
+      "你可以的",
+      "我站在你这边",
+      "把担心交给我",
+      "记得对自己好一点",
+      "笑容很配你",
+      "路过的好运都给你",
+      "心软也要坚强",
+      "今天也要被温柔对待",
+      "去看一朵花吧",
+      "把音乐开大声",
+      "想和你说说话",
+      "你已经足够好了",
+      "别和自己较劲",
+      "今天的云也很好看",
+      "把肩膀放下来",
+      "我在想你",
+      "记得回头看看",
+      "一切来得及",
+      "你值得被好好对待",
+      "今晚早点睡",
+      "把笑容留给自己"
+    ];
+
+    const HEART_HOLD = 700;
+    const HEART_STEP = 24;
+    const SCATTER_STEP = 14;
+    const LAYERS = 5;
+    const LAYER_GAP = 18;
+    const CARD_W = 146;
+
+    const app = document.getElementById("app");
+    const stage = document.getElementById("stage");
+    const mask = document.getElementById("mask");
+    const hint = document.getElementById("hint");
+    const toast = document.getElementById("toast");
+
+    let opened = false;
+    let runId = 0;
+    let toastTimer = 0;
+    let cards = [];
+    let heartScale = 1;
+    let scatterPoints = [];
+    let layoutPlan = null;
+    let timers = [];
+    window.__giftPhase = "dialog";
+
+    function later(fn, ms) {
+      const id = window.setTimeout(fn, ms);
+      timers.push(id);
+      return id;
+    }
+
+    function clearTimers() {
+      timers.forEach((id) => window.clearTimeout(id));
+      timers = [];
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function quad(p0, p1, p2, t) {
+      const u = 1 - t;
+      return {
+        x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+        y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+      };
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function transformAt(card, point, scale, rot) {
+      const x = point.x - card.offsetWidth / 2;
+      const y = point.y - card.offsetHeight / 2;
+      const spin = rot ? " rotate(" + rot.toFixed(2) + "deg)" : "";
+      return "translate(" + x.toFixed(1) + "px, " + y.toFixed(1) + "px) scale(" + scale + ")" + spin;
+    }
+
+    function heartCoord(t) {
+      return {
+        x: 16 * Math.sin(t) ** 3,
+        y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
+      };
+    }
+
+    function sampleOutline(count, phase) {
+      const steps = 900;
+      const dense = [];
+      const dist = [0];
+      for (let i = 0; i <= steps; i += 1) {
+        dense.push(heartCoord(Math.PI + (i / steps) * Math.PI * 2));
+        if (i > 0) {
+          dist.push(dist[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y));
+        }
+      }
+      const total = dist[dist.length - 1];
+      const raw = [];
+      for (let k = 0; k < count; k += 1) {
+        const target = ((k + phase) / count) * total;
+        let i = 1;
+        while (i < dist.length - 1 && dist[i] < target) i += 1;
+        const span = dist[i] - dist[i - 1] || 1;
+        const blend = clamp((target - dist[i - 1]) / span, 0, 1);
+        raw.push({
+          x: dense[i - 1].x + (dense[i].x - dense[i - 1].x) * blend,
+          y: dense[i - 1].y + (dense[i].y - dense[i - 1].y) * blend
+        });
+      }
+      let cx = 0;
+      let cy = 0;
+      raw.forEach((point) => {
+        cx += point.x;
+        cy += point.y;
+      });
+      cx /= count;
+      cy /= count;
+      return raw.map((point, index) => {
+        const prev = raw[(index - 1 + count) % count];
+        const next = raw[(index + 1) % count];
+        const len = Math.hypot(next.x - prev.x, next.y - prev.y) || 1;
+        let nx = -(next.y - prev.y) / len;
+        let ny = (next.x - prev.x) / len;
+        if (nx * (cx - point.x) + ny * (cy - point.y) < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        return { x: point.x, y: point.y, nx, ny };
+      });
+    }
+
+    function heartPoints(width, height) {
+      const perLayer = layoutPlan.perLayer;
+      const outline = sampleOutline(perLayer, 0);
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      outline.forEach((point) => {
+        minX = Math.min(minX, point.x);
+        maxX = Math.max(maxX, point.x);
+        minY = Math.min(minY, point.y);
+        maxY = Math.max(maxY, point.y);
+      });
+      const marginX = CARD_W * 0.55;
+      const marginY = 36;
+      const scale = Math.min((width - marginX * 2) / (maxX - minX), (height - marginY * 2) / (maxY - minY));
+      const ox = width / 2 - ((minX + maxX) / 2) * scale;
+      const oy = height / 2 - ((minY + maxY) / 2) * scale;
+      const points = [];
+      for (let layer = 0; layer < LAYERS; layer += 1) {
+        const ring = layer % 2 === 0 ? outline : sampleOutline(perLayer, 0.5);
+        ring.forEach((point) => {
+          const jitter = (Math.random() - 0.5) * 8;
+          points.push({
+            x: clamp(ox + point.x * scale - point.nx * LAYER_GAP * layer + point.nx * jitter, 8, width - 8),
+            y: clamp(oy + point.y * scale - point.ny * LAYER_GAP * layer + point.ny * jitter, 8, height - 8)
+          });
+        });
+      }
+      return points;
+    }
+
+    function buildScatter(n, width, height, cardW, cardH) {
+      const slots = [];
+      for (let i = 0; i < n; i += 1) {
+        const pile = Math.random() < 0.72;
+        const anchorX = pile ? width * (0.08 + Math.random() * 0.84) : width * Math.random();
+        const anchorY = pile ? height * (0.06 + Math.random() * 0.88) : height * Math.random();
+        const spreadX = pile ? cardW * (0.15 + Math.random() * 0.85) : cardW * 0.2;
+        const spreadY = pile ? cardH * (0.2 + Math.random() * 1.1) : cardH * 0.25;
+        slots.push({
+          x: clamp(anchorX + (Math.random() - 0.5) * spreadX * 2, cardW * 0.28, width - cardW * 0.22),
+          y: clamp(anchorY + (Math.random() - 0.5) * spreadY * 2, cardH * 0.22, height - cardH * 0.18),
+          rot: (Math.random() - 0.5) * 18
+        });
+      }
+      return slots;
+    }
+
+    function trackControl(start, end, index, width, height) {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const side = index % 2 === 0 ? 1 : -1;
+      const bend = side * Math.min(width, height) * 0.16;
+      return {
+        x: clamp((start.x + end.x) / 2 + (-dy / len) * bend, 24, width - 24),
+        y: clamp((start.y + end.y) / 2 + (dx / len) * bend, 24, height - 24)
+      };
+    }
+
+    function gridPlan(width, height, cardW, cardH) {
+      const stepX = cardW * 0.52;
+      const stepY = Math.max(26, cardH * 0.5);
+      let cols = Math.max(4, Math.round((width - cardW) / stepX) + 1);
+      let rows = Math.max(4, Math.round((height - cardH) / stepY) + 1);
+      if (cols * rows > 420) {
+        const fit = Math.sqrt(420 / (cols * rows));
+        cols = Math.max(4, Math.round(cols * fit));
+        rows = Math.max(4, Math.round(rows * fit));
+      }
+      const perLayer = Math.max(24, Math.round((cols * rows) / LAYERS));
+      return { cols, rows, perLayer, total: perLayer * LAYERS };
+    }
+
+    function makeCards() {
+      stage.innerHTML = "";
+      const width = stage.clientWidth;
+      const height = stage.clientHeight;
+      layoutPlan = gridPlan(width, height, CARD_W, 60);
+      const texts = [];
+      for (let i = 0; i < layoutPlan.total; i += 1) {
+        texts.push(PHRASES[i % PHRASES.length]);
+      }
+
+      cards = texts.map((text, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "card tone-" + (index % 9);
+        btn.innerHTML = '<span class="tag"><span class="heart">♥</span> 提示</span><span class="phrase"></span>';
+        btn.querySelector(".phrase").textContent = text;
+        btn.style.width = CARD_W + "px";
+        btn.addEventListener("click", () => copyPhrase(text, btn));
+        stage.appendChild(btn);
+        return btn;
+      });
+
+      heartScale = 1;
+      return {
+        width,
+        height,
+        cardW: cards[0].offsetWidth,
+        cardH: cards[0].offsetHeight
+      };
+    }
+
+    function flyToHeart(id, metrics) {
+      const { width, height } = metrics;
+      const points = heartPoints(width, height);
+      const start = { x: width / 2, y: height / 2 };
+      window.__giftPhase = "flying";
+
+      const animations = cards.map((card, index) => {
+        const end = points[index];
+        const control = trackControl(start, end, index, width, height);
+        const frames = [0, 0.28, 0.58, 1].map((t, frame) => {
+          const point = quad(start, control, end, t);
+          const scale = heartScale + (0.2 - heartScale) * (1 - t);
+          return {
+            transform: transformAt(card, point, frame === 0 ? 0.2 : scale),
+            opacity: frame === 0 ? 0 : 1,
+            offset: t
+          };
+        });
+        frames[frames.length - 1].transform = transformAt(card, end, heartScale);
+        card.style.zIndex = "1";
+        later(() => {
+          if (id !== runId) return;
+          card.style.zIndex = String(index + 2);
+        }, index * HEART_STEP);
+        return card.animate(frames, {
+          duration: 380,
+          delay: index * HEART_STEP,
+          easing: "cubic-bezier(0.16, 0.72, 0.28, 1)",
+          fill: "forwards"
+        });
+      });
+
+      return Promise.all(animations.map((anim) => anim.finished.catch(() => {}))).then(() => {
+        if (id !== runId) return null;
+        return points;
+      });
+    }
+
+    function scatterFromHeart(id, points) {
+      const width = stage.clientWidth;
+      const height = stage.clientHeight;
+      const cardW = cards[0].offsetWidth;
+      const cardH = cards[0].offsetHeight;
+      scatterPoints = buildScatter(cards.length, width, height, cardW, cardH);
+      const cx = width / 2;
+      const cy = height / 2;
+      window.__giftPhase = "scattering";
+
+      const animations = cards.map((card, index) => {
+        const from = points[index];
+        const to = scatterPoints[index];
+        const mid = {
+          x: from.x * 0.28 + to.x * 0.72 + (from.x - cx) * 0.18,
+          y: from.y * 0.28 + to.y * 0.72 + (from.y - cy) * 0.18
+        };
+        later(() => {
+          if (id !== runId) return;
+          card.style.zIndex = String(1000 + index);
+        }, index * SCATTER_STEP);
+        return card.animate([
+          { transform: transformAt(card, from, heartScale), opacity: 1, offset: 0 },
+          { transform: transformAt(card, mid, 1.04), opacity: 1, offset: 0.55 },
+          { transform: transformAt(card, to, 1, to.rot), opacity: 1, offset: 1 }
+        ], {
+          duration: 340,
+          delay: index * SCATTER_STEP,
+          easing: "cubic-bezier(0.16, 0.84, 0.28, 1)",
+          fill: "both"
+        });
+      });
+
+      return Promise.all(animations.map((anim) => anim.finished.catch(() => {}))).then(() => id === runId);
+    }
+
+    async function openGift() {
+      if (opened) return;
+      opened = true;
+      const id = ++runId;
+      mask.classList.add("leave");
+      await wait(260);
+      if (id !== runId) return;
+      mask.hidden = true;
+      app.classList.add("opened");
+      hint.hidden = true;
+
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const metrics = makeCards();
+      if (reduce) {
+        const points = heartPoints(metrics.width, metrics.height);
+        scatterPoints = buildScatter(cards.length, metrics.width, metrics.height, metrics.cardW, metrics.cardH);
+        cards.forEach((card, index) => {
+          card.style.opacity = "1";
+          card.style.zIndex = String(1000 + index);
+          card.style.transform = transformAt(card, scatterPoints[index], 1, scatterPoints[index].rot);
+        });
+        void points;
+        window.__giftPhase = "scatter";
+        hint.hidden = false;
+        return;
+      }
+
+      const points = await flyToHeart(id, metrics);
+      if (!points || id !== runId) return;
+      window.__giftPhase = "heart";
+      await wait(HEART_HOLD);
+      if (id !== runId) return;
+      const done = await scatterFromHeart(id, points);
+      if (!done) return;
+      window.__giftPhase = "scatter";
+      hint.hidden = false;
+    }
+
+    function resetGift() {
+      runId += 1;
+      clearTimers();
+      opened = false;
+      cards = [];
+      scatterPoints = [];
+      stage.innerHTML = "";
+      hint.hidden = true;
+      app.classList.remove("opened");
+      mask.hidden = false;
+      mask.classList.remove("leave");
+      window.__giftPhase = "dialog";
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("on");
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("on"), 1400);
+    }
+
+    async function copyPhrase(text, card) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.left = "-9999px";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      card.classList.add("copied");
+      window.setTimeout(() => card.classList.remove("copied"), 700);
+      showToast("已复制：「" + text + "」");
+    }
+
+    document.getElementById("openBtn").addEventListener("click", openGift);
+    document.getElementById("closeBtn").addEventListener("click", resetGift);
+  </script>
+</body>
+</html>
